@@ -29,7 +29,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.dispose();
   }
 
-  // In your login screen's login handler
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -39,6 +38,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _passwordController.text,
     );
 
+
     if (mounted) {
       result.fold(
             (failure) {
@@ -46,11 +46,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             SnackBar(
               content: Text(failure.message),
               backgroundColor: Colors.red,
-              duration: const Duration(seconds: 4),
+              duration: const Duration(seconds: 3),
             ),
           );
         },
             (_) {
+          // ✅ Router will automatically navigate to dashboard
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Login successful!'),
@@ -58,11 +59,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               duration: Duration(seconds: 2),
             ),
           );
-          context.go(RouteNames.dashboard);
         },
       );
     }
   }
+
 
 
   @override

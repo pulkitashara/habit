@@ -1,4 +1,3 @@
-// lib/data/models/habit_model.dart
 import 'package:hive/hive.dart';
 import 'package:json_annotation/json_annotation.dart';
 import '../../domain/entities/habit.dart';
@@ -24,7 +23,7 @@ class HabitModel extends HiveObject {
   final int targetCount;
 
   @HiveField(5)
-  final String frequency; // daily, weekly
+  final String frequency;
 
   @HiveField(6)
   final DateTime createdAt;
@@ -107,8 +106,7 @@ class HabitModel extends HiveObject {
       currentStreak: habit.currentStreak,
       longestStreak: habit.longestStreak,
       completionRate: habit.completionRate,
-    );
-  }
+    );  }
 
   HabitModel copyWith({
     String? id,

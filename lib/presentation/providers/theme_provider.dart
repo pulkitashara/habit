@@ -1,6 +1,5 @@
-// lib/presentation/providers/theme_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../../data/datasources/local/hive_service.dart';
 
 class ThemeNotifier extends StateNotifier<bool> {
   ThemeNotifier() : super(false) {
@@ -8,14 +7,13 @@ class ThemeNotifier extends StateNotifier<bool> {
   }
 
   Future<void> _loadThemePreference() async {
-    final prefs = await SharedPreferences.getInstance();
-    state = prefs.getBool('isDarkMode') ?? false;
+    final isDarkMode = HiveService.getSetting<bool>('isDarkMode') ?? false;
+    state = isDarkMode;
   }
 
   Future<void> toggleTheme() async {
     state = !state;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('isDarkMode', state);
+    await HiveService.saveSetting('isDarkMode', state);
   }
 }
 
