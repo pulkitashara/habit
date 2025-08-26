@@ -1,0 +1,37 @@
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    id "dev.flutter.flutter-gradle-plugin"
+}
+
+android {
+    namespace "com.pulkit.habbittracker.habbit_tracker"
+    compileSdk 35
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11  // Changed from 1.8
+        targetCompatibility JavaVersion.VERSION_11  // Changed from 1.8
+    }
+
+    kotlinOptions {
+        jvmTarget = '11'  // Changed from '1.8' to match compileOptions
+    }
+
+    defaultConfig {
+        applicationId "com.pulkit.habbittracker.habbit_tracker"
+        minSdkVersion flutter.minSdkVersion
+        targetSdkVersion 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.debug
+        }
+    }
+}
+
+flutter {
+    source '../..'
+}
