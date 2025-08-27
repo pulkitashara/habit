@@ -1,4 +1,3 @@
-// lib/domain/entities/habit_progress.dart
 class HabitProgress {
   final String id;
   final String habitId;
@@ -22,13 +21,33 @@ class HabitProgress {
     this.synced = false,
   });
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-          other is HabitProgress &&
-              runtimeType == other.runtimeType &&
-              id == other.id;
+  // ✅ Add toJson method
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'habitId': habitId,
+      'date': date.toIso8601String(),
+      'completed': completed,
+      'target': target,
+      'isCompleted': isCompleted,
+      'notes': notes,
+      'createdAt': createdAt.toIso8601String(),
+      'synced': synced,
+    };
+  }
 
-  @override
-  int get hashCode => id.hashCode;
+  // ✅ Add fromJson factory
+  static HabitProgress fromJson(Map<String, dynamic> json) {
+    return HabitProgress(
+      id: json['id'],
+      habitId: json['habitId'],
+      date: DateTime.parse(json['date']),
+      completed: json['completed'],
+      target: json['target'],
+      isCompleted: json['isCompleted'],
+      notes: json['notes'],
+      createdAt: DateTime.parse(json['createdAt']),
+      synced: json['synced'] ?? false,
+    );
+  }
 }

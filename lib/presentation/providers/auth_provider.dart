@@ -1,20 +1,25 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dartz/dartz.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../../data/services/api_service.dart';
 import '../../domain/entities/user.dart';
 import '../../core/errors/failures.dart';
+import '../../core/exceptions/api_exception.dart';
+import '../../data/datasources/local/hive_service.dart';
+import 'api_providers.dart';
 
 class AuthState {
   final bool isLoading;
   final User? user;
   final bool isAuthenticated;
   final String? error;
+  final String? token;
 
   AuthState({
     this.isLoading = false,
     this.user,
     this.isAuthenticated = false,
     this.error,
+    this.token,
   });
 
   AuthState copyWith({
@@ -22,34 +27,37 @@ class AuthState {
     User? user,
     bool? isAuthenticated,
     String? error,
+    String? token,
   }) {
     return AuthState(
       isLoading: isLoading ?? this.isLoading,
       user: user ?? this.user,
       isAuthenticated: isAuthenticated ?? this.isAuthenticated,
       error: error,
+      token: token ?? this.token,
     );
   }
 }
 
 class AuthNotifier extends StateNotifier<AuthState> {
-  AuthNotifier() : super(AuthState()) {
-    _checkAuthStatus(); // Check if already logged in
+  final ApiService _apiService;
+  final Ref _ref;
+
+  AuthNotifier(this._apiService, this._ref) : super(AuthState()) {
+    _checkAuthStatus();
   }
 
-  // Check if user is already logged in when app starts
   Future<void> _checkAuthStatus() async {
-    final prefs = await SharedPreferences.getInstance();
-    final isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
-    final savedUsername = prefs.getString('username');
+    final token = HiveService.getSetting<String>('auth_token');
+    final userData = HiveService.getSetting<Map>('user_data');
 
-    if (isLoggedIn && savedUsername != null) {
+    if (token != null && userData != null) {
       final user = User(
-        id: '1',
-        username: savedUsername,
-        email: savedUsername,
-        firstName: 'User',
-        lastName: '',
+        id: userData['id'] ?? '1',
+        username: userData['username'] ?? 'user',
+        email: userData['email'] ?? 'user@example.com',
+        firstName: userData['firstName'],
+        lastName: userData['lastName'],
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -57,61 +65,63 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = state.copyWith(
         isAuthenticated: true,
         user: user,
+        token: token,
       );
     }
   }
 
   Future<Either<Failure, void>> login(String username, String password) async {
     state = state.copyWith(isLoading: true, error: null);
+    _ref.read(apiLoadingProvider.notifier).state = true;
 
     try {
-      // Simulate API delay
-      await Future.delayed(const Duration(seconds: 1));
+      // Call mock API
+      final response = await _apiService.login(username, password);
 
-      // Check stored accounts or use default test account
-      final prefs = await SharedPreferences.getInstance();
-      final storedAccounts = prefs.getStringList('accounts') ?? ['test@example.com:password123'];
+      // Extract data from response
+      final token = response['token'];
+      final userData = response['user'];
 
-      final loginKey = '$username:$password';
+      // Store auth data
+      await HiveService.saveSetting('auth_token', token);
+      await HiveService.saveSetting('refresh_token', response['refreshToken']);
+      await HiveService.saveSetting('user_data', userData);
 
-      // Check if account exists
-      if (storedAccounts.contains(loginKey)) {
-        // Create user
-        final user = User(
-          id: '1',
-          username: username,
-          email: username,
-          firstName: 'User',
-          lastName: '',
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-        );
-
-        // Save login state
-        await prefs.setBool('isLoggedIn', true);
-        await prefs.setString('username', username);
-
-        state = state.copyWith(
-          isLoading: false,
-          user: user,
-          isAuthenticated: true,
-          error: null,
-        );
-
-        return const Right(null);
-      } else {
-        state = state.copyWith(
-            isLoading: false,
-            error: 'Invalid username or password'
-        );
-        return const Left(AuthFailure('Invalid username or password'));
-      }
-    } catch (e) {
-      state = state.copyWith(
-          isLoading: false,
-          error: 'Login failed. Please try again.'
+      // Create user entity
+      final user = User(
+        id: userData['id'],
+        username: userData['username'],
+        email: userData['email'],
+        firstName: userData['firstName'],
+        lastName: userData['lastName'],
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
       );
-      return const Left(AuthFailure('Login failed. Please try again.'));
+
+      state = state.copyWith(
+        isLoading: false,
+        user: user,
+        isAuthenticated: true,
+        token: token,
+        error: null,
+      );
+
+      _ref.read(apiLoadingProvider.notifier).state = false;
+      _ref.read(apiErrorProvider.notifier).state = null;
+
+      return const Right(null);
+    } catch (e) {
+      final errorMessage = _handleError(e);
+
+      state = state.copyWith(
+        isLoading: false,
+        error: errorMessage,
+      );
+
+      _ref.read(apiLoadingProvider.notifier).state = false;
+      _ref.read(apiErrorProvider.notifier).state = errorMessage;
+
+      return Left(_mapExceptionToFailure(e));
     }
   }
 
@@ -123,40 +133,91 @@ class AuthNotifier extends StateNotifier<AuthState> {
     String? lastName,
   }) async {
     state = state.copyWith(isLoading: true, error: null);
+    _ref.read(apiLoadingProvider.notifier).state = true;
 
     try {
-      await Future.delayed(const Duration(seconds: 1));
+      final userData = {
+        'username': username,
+        'email': email,
+        'password': password,
+        'firstName': firstName,
+        'lastName': lastName,
+      };
 
-      // Store the account
-      final prefs = await SharedPreferences.getInstance();
-      final storedAccounts = prefs.getStringList('accounts') ?? [];
-
-      final accountKey = '$username:$password';
-      if (!storedAccounts.contains(accountKey)) {
-        storedAccounts.add(accountKey);
-        await prefs.setStringList('accounts', storedAccounts);
-      }
+      await _apiService.signup(userData);
 
       state = state.copyWith(isLoading: false, error: null);
+      _ref.read(apiLoadingProvider.notifier).state = false;
+
       return const Right(null);
     } catch (e) {
+      final errorMessage = _handleError(e);
+
       state = state.copyWith(
-          isLoading: false,
-          error: 'Signup failed. Please try again.'
+        isLoading: false,
+        error: errorMessage,
       );
-      return const Left(AuthFailure('Signup failed. Please try again.'));
+
+      _ref.read(apiLoadingProvider.notifier).state = false;
+      _ref.read(apiErrorProvider.notifier).state = errorMessage;
+
+      return Left(_mapExceptionToFailure(e));
     }
   }
 
   Future<void> logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('isLoggedIn', false);
-    await prefs.remove('username');
+    final token = state.token;
+
+    if (token != null) {
+      try {
+        await _apiService.logout(token);
+      } catch (e) {
+        print('Logout API call failed: $e');
+      }
+    }
+
+    // Clear local storage
+    await HiveService.saveSetting('auth_token', null);
+    await HiveService.saveSetting('refresh_token', null);
+    await HiveService.saveSetting('user_data', null);
 
     state = AuthState();
+  }
+
+  String _handleError(dynamic error) {
+    if (error is AuthException) {
+      return error.message;
+    } else if (error is ValidationException) {
+      return error.message;
+    } else if (error is NetworkException) {
+      return error.message;
+    } else if (error is TimeoutException) {
+      return error.message;
+    } else if (error is ServerException) {
+      return error.message;
+    } else {
+      return 'An unexpected error occurred. Please try again.';
+    }
+  }
+
+  Failure _mapExceptionToFailure(dynamic exception) {
+    if (exception is AuthException) {
+      return AuthFailure(exception.message);
+    } else if (exception is ValidationException) {
+      return ValidationFailure(exception.message);
+    } else if (exception is NetworkException) {
+      return NetworkFailure(exception.message);
+    } else if (exception is TimeoutException) {
+      return NetworkFailure(exception.message);
+    } else if (exception is ServerException) {
+      return ServerFailure(exception.message);
+    } else {
+      return ServerFailure('Unknown error occurred');
+    }
   }
 }
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
-  return AuthNotifier();
+  final apiService = ref.watch(apiServiceProvider);
+  return AuthNotifier(apiService, ref);
 });
