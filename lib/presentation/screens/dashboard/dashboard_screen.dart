@@ -5,12 +5,13 @@ import 'package:go_router/go_router.dart';
 import '../../providers/habit_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/theme_provider.dart';
+import '../../providers/api_providers.dart';
 import '../../widgets/dashboard/dashboard_header.dart';
 import '../../widgets/habit/habit_card.dart';
 import '../../widgets/common/loading_widget.dart';
 import '../../widgets/common/error_widget.dart';
 import '../../routes/route_names.dart';
-import '../../../core/theme/colors.dart';
+import '../../../data/datasources/local/hive_service.dart'; // ✅ Add this import
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -57,20 +58,131 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
+  void _dismissError() {
+    ref.read(habitProvider.notifier).clearError();
+  }
+
+  // ✅ Debug method to show storage info
+  void _showDebugDialog() {
+    HiveService.debugPrintStorage(); // Prints to console
+
+    // Also show in a dialog for easy viewing
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('🐛 Debug Storage Info'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Habits Count: ${HiveService.getAllHabits().length}'),
+              const SizedBox(height: 8),
+              Text('Progress Count: ${HiveService.getAllHabits().map((h) => HiveService.getHabitProgress(h.id).length).fold(0, (a, b) => a + b)}'),
+              const SizedBox(height: 16),
+              const Text('Habits:', style: TextStyle(fontWeight: FontWeight.bold)),
+              ...HiveService.getAllHabits().map((habit) => Padding(
+                padding: const EdgeInsets.only(left: 8, top: 4),
+                child: Text('• ${habit.name} (${habit.id})'),
+              )),
+              const SizedBox(height: 16),
+              const Text('Recent Progress:', style: TextStyle(fontWeight: FontWeight.bold)),
+              ...HiveService.getAllHabits().take(3).expand((habit) {
+                final progress = HiveService.getHabitProgress(habit.id).take(2);
+                return progress.map((p) => Padding(
+                  padding: const EdgeInsets.only(left: 8, top: 4),
+                  child: Text('• ${habit.name}: ${p.date.day}/${p.date.month} ${p.isCompleted ? '✅' : '❌'}'),
+                ));
+              }),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+          // ✅ Add clear data button for testing
+          TextButton(
+            onPressed: () async {
+              await HiveService.clearAllData();
+              Navigator.of(context).pop();
+              ref.read(habitProvider.notifier).loadHabits();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('All data cleared!')),
+              );
+            },
+            child: const Text('Clear All Data', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final habitState = ref.watch(habitProvider);
     final authState = ref.watch(authProvider);
     final isDarkMode = ref.watch(themeProvider);
+    final isOnline = ref.watch(networkStatusProvider);
+    final apiError = ref.watch(apiErrorProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Habit Builder'),
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        foregroundColor: Theme.of(context).colorScheme.onPrimary,
         actions: [
+          // ✅ Debug button (remove this in production)
+          IconButton(
+            onPressed: _showDebugDialog,
+            icon: const Icon(Icons.bug_report),
+            tooltip: 'Debug Storage',
+          ),
+
+          // Network status indicator
+          if (!isOnline)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              margin: const EdgeInsets.only(right: 8),
+              decoration: BoxDecoration(
+                color: Colors.orange,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.wifi_off, size: 14, color: Colors.white),
+                  SizedBox(width: 4),
+                  Text(
+                    'Offline',
+                    style: TextStyle(fontSize: 12, color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+
+          // Sync indicator
+          if (habitState.isSyncing)
+            Container(
+              padding: const EdgeInsets.all(8),
+              child: const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ),
+            ),
+
+          // Theme toggle
           IconButton(
             icon: Icon(isDarkMode ? Icons.light_mode : Icons.dark_mode),
             onPressed: () => ref.read(themeProvider.notifier).toggleTheme(),
           ),
+
+          // Menu
           PopupMenuButton<String>(
             onSelected: (value) {
               switch (value) {
@@ -80,6 +192,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 case 'settings':
                 // TODO: Navigate to settings
                   break;
+                case 'debug':
+                  _showDebugDialog();
+                  break;
                 case 'logout':
                   _showLogoutDialog();
                   break;
@@ -88,6 +203,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             itemBuilder: (context) => [
               const PopupMenuItem(value: 'profile', child: Text('Profile')),
               const PopupMenuItem(value: 'settings', child: Text('Settings')),
+              const PopupMenuItem(
+                value: 'debug',
+                child: Row(
+                  children: [
+                    Icon(Icons.bug_report, size: 16),
+                    SizedBox(width: 8),
+                    Text('Debug Storage'),
+                  ],
+                ),
+              ),
               const PopupMenuItem(value: 'logout', child: Text('Logout')),
             ],
           ),
@@ -97,19 +222,63 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         onRefresh: _refreshHabits,
         child: CustomScrollView(
           slivers: [
+            // API Error Banner
+            if (apiError != null)
+              SliverToBoxAdapter(
+                child: Container(
+                  margin: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withValues(alpha: 0.1),
+                    border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.error_outline, color: Colors.red),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(apiError, style: const TextStyle(color: Colors.red))),
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 16),
+                        onPressed: () => ref.read(apiErrorProvider.notifier).state = null,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+            // Habit State Error Banner
+            if (habitState.error != null)
+              SliverToBoxAdapter(
+                child: Container(
+                  margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withValues(alpha: 0.1),
+                    border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.warning_outlined, color: Colors.orange),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(habitState.error!, style: const TextStyle(color: Colors.orange))),
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 16),
+                        onPressed: _dismissError,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
             // Dashboard Header
             SliverToBoxAdapter(
               child: DashboardHeader(
                 user: authState.user,
                 totalHabits: habitState.habits.length,
-                completedToday: habitState.habits
-                    .where((habit) => habit.completionRate > 0)
-                    .length,
-                currentStreak: habitState.habits.isNotEmpty
-                    ? habitState.habits
-                    .map((h) => h.currentStreak)
-                    .reduce((a, b) => a > b ? a : b)
-                    : 0,
+                completedToday: _calculateCompletedToday(habitState.habits),
+                currentStreak: _calculateMaxStreak(habitState.habits),
               ),
             ),
 
@@ -118,48 +287,85 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               const SliverFillRemaining(
                 child: Center(child: LoadingWidget()),
               )
-            else if (habitState.error != null)
-              SliverFillRemaining(
-                child: CustomErrorWidget(
-                  message: habitState.error!,
-                  onRetry: _refreshHabits,
-                ),
-              )
             else if (habitState.habits.isEmpty)
-                SliverFillRemaining(
-                  child: _buildEmptyState(),
-                )
-              else
-                SliverPadding(
-                  padding: const EdgeInsets.all(16),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                          (context, index) {
-                        final habit = habitState.habits[index];
-                        return Padding(
+              SliverFillRemaining(
+                child: _buildEmptyState(),
+              )
+            else
+              SliverPadding(
+                padding: const EdgeInsets.all(16),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                      final habit = habitState.habits[index];
+                      return Dismissible(
+                        key: ValueKey(habit.id), // Required: unique key for each item
+                        direction: DismissDirection.endToStart, // Swipe left to delete
+                        background: Container(
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          margin: const EdgeInsets.only(bottom: 12),
+
+
+                          decoration: BoxDecoration( // 👈 use decoration instead of color
+                            color: Colors.red.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8), // match HabitCard if needed
+                            border: Border.all(
+                              color: Colors.red,
+                              width: 1.5,
+                            ),
+                          ),
+                          child: const Icon(Icons.delete, color: Colors.red, size: 32),
+                        ),
+                        confirmDismiss: (direction) async {
+                          // Optional: confirm with dialog
+                          return await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: const Text('Delete Habit?'),
+                              content: const Text('Are you sure you want to delete this habit and all its progress?'),
+                              actions: [
+                                TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+                                TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Delete')),
+                              ],
+                            ),
+                          );
+                        },
+                        onDismissed: (_) async {
+                          await ref.read(habitProvider.notifier).deleteHabit(habit.id);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Habit deleted!')),
+                          );
+                        },
+                        child: Padding(
                           padding: const EdgeInsets.only(bottom: 12),
                           child: HabitCard(
+                            key: ValueKey(habit.id),
                             habit: habit,
-                            onTap: () => context.push(
-                              '${RouteNames.habitDetail}/${habit.id}',
-                            ),
-                            onToggleComplete: () => ref
-                                .read(habitProvider.notifier)
-                                .markHabitComplete(habit.id),
+                            onTap: () {
+                              ref.read(habitProvider.notifier).loadHabitProgress(habit.id);
+                              context.push('${RouteNames.habitDetail}/${habit.id}');
+                            },
+                            onToggleComplete: () async {
+                              await ref.read(habitProvider.notifier).markHabitComplete(habit.id);
+                            },
                           ),
-                        );
-                      },
-                      childCount: habitState.habits.length,
-                    ),
+                        ),
+                      );
+                    },
+                    childCount: habitState.habits.length,
                   ),
                 ),
+              )
+
           ],
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push(RouteNames.createHabit),
+        onPressed: () => context.push(RouteNames.addHabit),
         icon: const Icon(Icons.add),
         label: const Text('New Habit'),
+        tooltip: 'Create a new habit',
       ),
     );
   }
@@ -192,7 +398,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           ),
           const SizedBox(height: 32),
           ElevatedButton.icon(
-            onPressed: () => context.push(RouteNames.createHabit),
+            onPressed: () => context.push(RouteNames.addHabit),
             icon: const Icon(Icons.add),
             label: const Text('Create First Habit'),
             style: ElevatedButton.styleFrom(
@@ -205,5 +411,27 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         ],
       ),
     );
+  }
+
+  // ✅ Helper method to calculate completed habits today
+  int _calculateCompletedToday(List<dynamic> habits) {
+    final today = DateTime.now();
+    int completedCount = 0;
+
+    for (final habit in habits) {
+      // Check if this habit has progress for today using HiveService
+      final todayProgress = HiveService.getTodayProgress(habit.id);
+      if (todayProgress?.isCompleted == true) {
+        completedCount++;
+      }
+    }
+
+    return completedCount;
+  }
+
+  // ✅ Helper method to calculate max streak
+  int _calculateMaxStreak(List<dynamic> habits) {
+    if (habits.isEmpty) return 0;
+    return habits.map((h) => h.currentStreak as int).reduce((a, b) => a > b ? a : b);
   }
 }

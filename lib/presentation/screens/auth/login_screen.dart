@@ -78,7 +78,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       );
     }
   }
-
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
@@ -86,183 +85,182 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final apiError = ref.watch(apiErrorProvider);
 
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // App Logo/Title
-                Text(
-                  'Habit Builder',
-                  style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).primaryColor,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Build better habits, one day at a time',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: Theme.of(context).textTheme.bodySmall?.color,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 48),
-
-                // Demo Credentials Info
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: Theme.of(context).primaryColor.withValues(alpha: 0.3),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: MediaQuery.of(context).size.height -
+                  MediaQuery.of(context).padding.top - 48,
+            ),
+            child: IntrinsicHeight(
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // App Logo/Title
+                    Text(
+                      'Habit Builder',
+                      style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).primaryColor,
+                      ),
+                      textAlign: TextAlign.center,
                     ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+                    const SizedBox(height: 8),
+                    Text(
+                      'Build better habits, one day at a time',
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: Theme.of(context).textTheme.bodySmall?.color,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 32),
+
+                    // Demo Credentials Info (Compact)
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: Theme.of(context).primaryColor.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Row(
                         children: [
                           Icon(
                             Icons.info_outline,
                             color: Theme.of(context).primaryColor,
-                            size: 16,
+                            size: 14,
                           ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Demo Credentials',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: Theme.of(context).primaryColor,
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'Demo: test@example.com / password123',
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                fontFamily: 'monospace',
+                              ),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Username: test@example.com\nPassword: password123',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          fontFamily: 'monospace',
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Username Field
+                    CustomTextField(
+                      controller: _usernameController,
+                      labelText: 'Username',
+                      prefixIcon: Icons.person_outline,
+                      validator: Validators.required,
+                      textInputAction: TextInputAction.next,
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Password Field
+                    CustomTextField(
+                      controller: _passwordController,
+                      labelText: 'Password',
+                      prefixIcon: Icons.lock_outline,
+                      obscureText: !_isPasswordVisible,
+                      validator: Validators.password,
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (_) => _handleLogin(),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _isPasswordVisible
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined,
                         ),
+                        onPressed: () {
+                          setState(() {
+                            _isPasswordVisible = !_isPasswordVisible;
+                          });
+                        },
                       ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                // Username Field
-                CustomTextField(
-                  controller: _usernameController,
-                  labelText: 'Username',
-                  prefixIcon: Icons.person_outline,
-                  validator: Validators.required,
-                  textInputAction: TextInputAction.next,
-                ),
-                const SizedBox(height: 16),
-
-                // Password Field
-                CustomTextField(
-                  controller: _passwordController,
-                  labelText: 'Password',
-                  prefixIcon: Icons.lock_outline,
-                  obscureText: !_isPasswordVisible,
-                  validator: Validators.password,
-                  textInputAction: TextInputAction.done,
-                  onSubmitted: (_) => _handleLogin(),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _isPasswordVisible
-                          ? Icons.visibility_off_outlined
-                          : Icons.visibility_outlined,
                     ),
-                    onPressed: () {
-                      setState(() {
-                        _isPasswordVisible = !_isPasswordVisible;
-                      });
-                    },
-                  ),
-                ),
-                const SizedBox(height: 24),
+                    const SizedBox(height: 16),
 
-                // API Loading Progress Bar
-                if (apiLoading)
-                  Column(
-                    children: [
-                      const LinearProgressIndicator(),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Authenticating...',
-                        style: Theme.of(context).textTheme.bodySmall,
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 12),
-                    ],
-                  ),
-
-                // Login Button
-                apiLoading
-                    ? const Center(child: LoadingWidget())
-                    : CustomButton(
-                  text: 'Login',
-                  onPressed: _handleLogin,
-                ),
-                const SizedBox(height: 16),
-
-                // API Error Display
-                if (apiError != null)
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 16),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withValues(alpha: 0.1),
-                      border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.error_outline, color: Colors.red, size: 20),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            apiError,
-                            style: const TextStyle(color: Colors.red),
+                    // API Loading Progress Bar
+                    if (apiLoading)
+                      Column(
+                        children: [
+                          const LinearProgressIndicator(),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Authenticating...',
+                            style: Theme.of(context).textTheme.bodySmall,
+                            textAlign: TextAlign.center,
                           ),
+                          const SizedBox(height: 8),
+                        ],
+                      ),
+
+                    // Login Button
+                    apiLoading
+                        ? const Center(child: LoadingWidget())
+                        : CustomButton(
+                      text: 'Login',
+                      onPressed: _handleLogin,
+                    ),
+                    const SizedBox(height: 12),
+
+                    // API Error Display
+                    if (apiError != null)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withValues(alpha: 0.1),
+                          border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.close, size: 16),
-                          onPressed: () => ref.read(apiErrorProvider.notifier).state = null,
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.error_outline, color: Colors.red, size: 16),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                apiError,
+                                style: const TextStyle(color: Colors.red, fontSize: 12),
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.close, size: 14),
+                              onPressed: () => ref.read(apiErrorProvider.notifier).state = null,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                    // Sign Up Link
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          "Don't have an account? ",
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        TextButton(
+                          onPressed: () => context.push(RouteNames.signup),
+                          child: const Text('Sign Up'),
                         ),
                       ],
                     ),
-                  ),
-
-                // Sign Up Link
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      "Don't have an account? ",
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    TextButton(
-                      onPressed: () => context.push(RouteNames.signup),
-                      child: const Text('Sign Up'),
-                    ),
                   ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
       ),
     );
   }
+
 }

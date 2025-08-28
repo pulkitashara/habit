@@ -60,10 +60,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: RouteNames.dashboard,
         builder: (context, state) => const DashboardScreen(),
       ),
-      GoRoute(
-        path: RouteNames.createHabit,
-        builder: (context, state) => const CreateHabitScreen(),
-      ),
+      // GoRoute(
+      //   path: RouteNames.createHabit,
+      //   builder: (context, state) => const CreateHabitScreen(),
+      // ),
       GoRoute(
         path: '${RouteNames.habitDetail}/:habitId',
         builder: (context, state) {
@@ -71,6 +71,12 @@ final routerProvider = Provider<GoRouter>((ref) {
           return HabitDetailScreen(habitId: habitId);
         },
       ),
+
+      GoRoute(
+        path: '/add-habit',
+        builder: (context, state) => const AddHabitScreen(),
+      ),
+
     ],
   );
 });
@@ -97,10 +103,10 @@ class AppRouter {
         path: RouteNames.dashboard,
         builder: (context, state) => const DashboardScreen(),
       ),
-      GoRoute(
-        path: RouteNames.createHabit,
-        builder: (context, state) => const CreateHabitScreen(),
-      ),
+      // GoRoute(
+      //   path: RouteNames.createHabit,
+      //   builder: (context, state) => const CreateHabitScreen(),
+      // ),
       GoRoute(
         path: '${RouteNames.habitDetail}/:habitId',
         builder: (context, state) {

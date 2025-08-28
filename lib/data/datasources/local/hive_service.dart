@@ -10,224 +10,200 @@ class HiveService {
   static const String _progressBox = 'progress';
   static const String _settingsBox = 'settings';
 
-  // Boxes
-  static Box<HabitModel> get _habitsHive => Hive.box<HabitModel>(_habitsBox);
-  static Box<HabitProgressModel> get _progressHive => Hive.box<HabitProgressModel>(_progressBox);
-  static Box get _settingsHive => Hive.box(_settingsBox);
+  // Add this flag to prevent re-initialization
+  static bool _isInitialized = false;
 
-  // HABITS CRUD
+  // ✅ Single initialization method
+  static Future<void> initializeHive() async {
+    if (_isInitialized) return;
+
+    await Hive.initFlutter();
+
+    // Register adapters
+    Hive.registerAdapter(HabitModelAdapter());
+    Hive.registerAdapter(HabitProgressModelAdapter());
+    Hive.registerAdapter(UserModelAdapter());
+
+    // Open boxes and wait for them
+    await Hive.openBox<HabitModel>(_habitsBox);
+    await Hive.openBox<HabitProgressModel>(_progressBox);
+    await Hive.openBox(_settingsBox);
+
+    _isInitialized = true;
+
+    // ✅ Only run sample data initialization once per app install
+    // await _initializeSampleDataIfNeeded();
+  }
+
+  // ✅ Prevent default habits from showing up
+  // static Future<void> _initializeSampleDataIfNeeded() async {
+  //   final settings = Hive.box(_settingsBox);
+  //   final hasInitialized = settings.get('sample_data_initialized', defaultValue: false);
+  //
+  //   if (!hasInitialized) {
+  //     // Mark as initialized but don't add any sample data
+  //     await settings.put('sample_data_initialized', true);
+  //     // User will create their own habits
+  //   }
+  // }
+
+  // Getter methods for boxes
+  static Box<HabitModel> get _habitsBoxInstance => Hive.box<HabitModel>(_habitsBox);
+  static Box<HabitProgressModel> get _progressBoxInstance => Hive.box<HabitProgressModel>(_progressBox);
+  static Box get _settingsBoxInstance => Hive.box(_settingsBox);
+
+  // ✅ Habit CRUD operations
   static Future<void> saveHabit(HabitModel habit) async {
-    await _habitsHive.put(habit.id, habit);
+    await _habitsBoxInstance.put(habit.id, habit);
   }
 
   static List<HabitModel> getAllHabits() {
-    return _habitsHive.values.where((habit) => habit.isActive).toList()
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return _habitsBoxInstance.values.toList();
   }
 
-  static HabitModel? getHabit(String id) {
-    return _habitsHive.get(id);
+  static HabitModel? getHabit(String habitId) {
+    return _habitsBoxInstance.get(habitId);
   }
 
-  static Future<void> updateHabit(HabitModel habit) async {
-    await _habitsHive.put(habit.id, habit);
-  }
+  static Future<void> deleteHabit(String habitId) async {
+    await _habitsBoxInstance.delete(habitId);
 
-  static Future<void> deleteHabit(String id) async {
-    await _habitsHive.delete(id);
-    // Also delete related progress
-    final progressToDelete = _progressHive.values
-        .where((progress) => progress.habitId == id)
-        .toList();
+    // Also delete all progress for this habit
+    final progressBox = _progressBoxInstance;
+    final keysToDelete = <String>[];
 
-    for (final progress in progressToDelete) {
-      await progress.delete();
+    for (final entry in progressBox.toMap().entries) {
+      if (entry.value.habitId == habitId) {
+        keysToDelete.add(entry.key);
+      }
+    }
+
+    for (final key in keysToDelete) {
+      await progressBox.delete(key);
     }
   }
 
-  // PROGRESS CRUD
+  // ✅ Progress operations with date-based keys
   static Future<void> saveProgress(HabitProgressModel progress) async {
-    await _progressHive.put(progress.id, progress);
+    // Use a unique key that includes habitId and date
+    final dateKey = '${progress.habitId}_${_getDateKey(progress.date)}';
+    await _progressBoxInstance.put(dateKey, progress);
   }
 
   static List<HabitProgressModel> getHabitProgress(String habitId) {
-    return _progressHive.values
-        .where((p) => p.habitId == habitId)
+    return _progressBoxInstance.values
+        .where((progress) => progress.habitId == habitId)
         .toList()
-      ..sort((a, b) => b.date.compareTo(a.date));
+      ..sort((a, b) => b.date.compareTo(a.date)); // Sort newest first
   }
 
+  // ✅ Get today's progress using date-only comparison
   static HabitProgressModel? getTodayProgress(String habitId) {
-    final today = DateUtilsHelper.startOfDay(DateTime.now());
-    try {
-      return _progressHive.values.firstWhere(
-            (progress) =>
-        progress.habitId == habitId &&
-            DateUtilsHelper.isSameDay(progress.date, today),
-      );
-    } catch (e) {
-      return null; // ✅ Fixed nullable access
-    }
-  }
-
-  static bool isHabitCompletedToday(String habitId) {
-    final todayProgress = getTodayProgress(habitId);
-    return todayProgress?.isCompleted ?? false; // ✅ Fixed nullable access
-  }
-
-  static Future<void> markHabitComplete(String habitId, int targetCount) async {
     final today = DateTime.now();
-    final progressId = '${habitId}_${today.millisecondsSinceEpoch}';
-
-    // Check if already completed today
-    if (isHabitCompletedToday(habitId)) return;
-
-    final progress = HabitProgressModel(
-      id: progressId,
-      habitId: habitId,
-      date: today,
-      completed: targetCount,
-      target: targetCount,
-      isCompleted: true,
-      createdAt: today,
-    );
-
-    await saveProgress(progress);
-
-    // Update habit streak and completion rate
-    await _updateHabitStats(habitId);
+    final todayKey = '${habitId}_${_getDateKey(today)}';
+    return _progressBoxInstance.get(todayKey);
   }
 
-  static Future<void> _updateHabitStats(String habitId) async {
-    final habit = getHabit(habitId);
-    if (habit == null) return;
+  // ✅ Check if habit is completed on specific date
+  static HabitProgressModel? getProgressForDate(String habitId, DateTime date) {
+    final dateKey = '${habitId}_${_getDateKey(date)}';
+    return _progressBoxInstance.get(dateKey);
+  }
 
-    final allProgress = getHabitProgress(habitId);
+  // ✅ Calculate streak properly across dates
+  static int calculateCurrentStreak(String habitId) {
+    final allProgress = getHabitProgress(habitId)
+        .where((p) => p.isCompleted)
+        .toList();
 
-    // Calculate streak
-    int currentStreak = 0;
-    int longestStreak = 0;
-    int tempStreak = 0;
+    if (allProgress.isEmpty) return 0;
 
-    final sortedProgress = allProgress
-      ..sort((a, b) => a.date.compareTo(b.date));
+    // Sort by date descending
+    allProgress.sort((a, b) => b.date.compareTo(a.date));
 
-    DateTime? lastDate;
-    for (final progress in sortedProgress) {
-      if (progress.isCompleted) {
-        if (lastDate == null ||
-            DateUtilsHelper.getDaysDifference(progress.date, lastDate) == 1) {
-          tempStreak++;
-        } else {
-          tempStreak = 1;
-        }
+    int streak = 0;
+    DateTime checkDate = DateTime.now();
 
-        if (tempStreak > longestStreak) {
-          longestStreak = tempStreak;
-        }
-
-        // Check if this continues to today
-        if (DateUtilsHelper.isToday(progress.date) ||
-            DateUtilsHelper.getDaysDifference(DateTime.now(), progress.date) <= tempStreak) {
-          currentStreak = tempStreak;
-        }
-      } else {
-        tempStreak = 0;
-      }
-      lastDate = progress.date;
+    // Check if today is completed first
+    final todayProgress = getProgressForDate(habitId, checkDate);
+    if (todayProgress?.isCompleted != true) {
+      // If today isn't completed, start from yesterday
+      checkDate = checkDate.subtract(const Duration(days: 1));
     }
 
-    // Calculate completion rate
-    final totalDays = DateTime.now().difference(habit.createdAt).inDays + 1;
-    final completedDays = allProgress.where((p) => p.isCompleted).length;
-    final completionRate = totalDays > 0 ? completedDays / totalDays : 0.0;
+    // Check consecutive days backwards
+    for (int i = 0; i < 365; i++) { // Max 365 days to prevent infinite loop
+      final progress = getProgressForDate(habitId, checkDate);
 
-    // Update habit
-    final updatedHabit = habit.copyWith(
-      currentStreak: currentStreak,
-      longestStreak: longestStreak > habit.longestStreak ? longestStreak : habit.longestStreak,
-      completionRate: completionRate,
-      updatedAt: DateTime.now(),
-    );
+      if (progress != null && progress.isCompleted) {
+        streak++;
+        checkDate = checkDate.subtract(const Duration(days: 1));
+      } else {
+        // Streak is broken
+        break;
+      }
+    }
 
-    await saveHabit(updatedHabit);
+    return streak;
   }
 
-  // SETTINGS
-  static Future<void> saveSetting(String key, dynamic value) async {
-    await _settingsHive.put(key, value);
+  // ✅ Calculate completion rate
+  static double calculateCompletionRate(String habitId) {
+    final habit = _habitsBoxInstance.get(habitId);
+    if (habit == null) return 0.0;
+
+    final daysSinceCreation = DateTime.now().difference(habit.createdAt).inDays + 1;
+    final completedDays = getHabitProgress(habitId)
+        .where((p) => p.isCompleted)
+        .length;
+
+    return daysSinceCreation > 0 ? completedDays / daysSinceCreation : 0.0;
+  }
+
+  // ✅ Settings operations
+  static Future<void> saveSetting<T>(String key, T value) async {
+    await _settingsBoxInstance.put(key, value);
   }
 
   static T? getSetting<T>(String key) {
-    return _settingsHive.get(key) as T?;
+    return _settingsBoxInstance.get(key);
   }
 
-  // Initialize with sample data if empty
-  static Future<void> initializeSampleData() async {
-    if (_habitsHive.isEmpty) {
-      final sampleHabits = [
-        HabitModel(
-          id: '1',
-          name: 'Morning Exercise',
-          description: '30 minutes of exercise every morning',
-          category: 'fitness',
-          targetCount: 1,
-          frequency: 'daily',
-          createdAt: DateTime.now().subtract(const Duration(days: 7)),
-          updatedAt: DateTime.now(),
-          isActive: true,
-          color: '#FF6B6B',
-          icon: 'fitness_center',
-          currentStreak: 0,
-          longestStreak: 0,
-          completionRate: 0.0,
-        ),
-        HabitModel(
-          id: '2',
-          name: 'Drink Water',
-          description: 'Drink 8 glasses of water daily',
-          category: 'nutrition',
-          targetCount: 8,
-          frequency: 'daily',
-          createdAt: DateTime.now().subtract(const Duration(days: 5)),
-          updatedAt: DateTime.now(),
-          isActive: true,
-          color: '#4ECDC4',
-          icon: 'local_drink',
-          currentStreak: 0,
-          longestStreak: 0,
-          completionRate: 0.0,
-        ),
-        HabitModel(
-          id: '3',
-          name: 'Read Books',
-          description: 'Read for 30 minutes daily',
-          category: 'productivity',
-          targetCount: 1,
-          frequency: 'daily',
-          createdAt: DateTime.now().subtract(const Duration(days: 3)),
-          updatedAt: DateTime.now(),
-          isActive: true,
-          color: '#96CEB4',
-          icon: 'menu_book',
-          currentStreak: 0,
-          longestStreak: 0,
-          completionRate: 0.0,
-        ),
-      ];
+  // ✅ Helper methods for date handling
+  static String _getDateKey(DateTime date) {
+    return '${date.year}_${date.month.toString().padLeft(2, '0')}_${date.day.toString().padLeft(2, '0')}';
+  }
 
-      for (final habit in sampleHabits) {
-        await saveHabit(habit);
-      }
+  static bool _isSameDate(DateTime date1, DateTime date2) {
+    return date1.year == date2.year &&
+        date1.month == date2.month &&
+        date1.day == date2.day;
+  }
+
+  // ✅ Debug method to check what's in storage
+  static void debugPrintStorage() {
+    print('=== HIVE DEBUG INFO ===');
+    print('Habits count: ${_habitsBoxInstance.length}');
+    print('Progress count: ${_progressBoxInstance.length}');
+    print('Settings: ${_settingsBoxInstance.toMap()}');
+
+    for (final habit in _habitsBoxInstance.values) {
+      print('Habit: ${habit.name} (ID: ${habit.id})');
     }
+
+    for (final entry in _progressBoxInstance.toMap().entries) {
+      final progress = entry.value;
+      print('Progress: ${entry.key} -> ${progress.habitId} on ${progress.date} (completed: ${progress.isCompleted})');
+    }
+    print('=== END DEBUG INFO ===');
   }
 
-  // ✅ Fixed ValueListenable methods
-  static ValueListenable<Box<HabitModel>> watchHabits() {
-    return _habitsHive.listenable();
-  }
-
-  static ValueListenable<Box<HabitProgressModel>> watchProgress() {
-    return _progressHive.listenable();
+  // ✅ Method to clear all data (useful for testing)
+  static Future<void> clearAllData() async {
+    await _habitsBoxInstance.clear();
+    await _progressBoxInstance.clear();
+    await _settingsBoxInstance.clear();
   }
 }
+
+

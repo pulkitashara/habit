@@ -145,9 +145,9 @@ class MockApiService implements ApiService {
     final userId = _extractUserIdFromToken(token);
 
     // Initialize with sample habits if user has none
-    if (!_userHabits.containsKey(userId)) {
-      _userHabits[userId] = _generateSampleHabits();
-    }
+    // if (!_userHabits.containsKey(userId)) {
+    //   _userHabits[userId] = _generateSampleHabits();
+    // }
 
     final habits = _userHabits[userId]!;
 
@@ -340,56 +340,56 @@ class MockApiService implements ApiService {
     return parts[2];
   }
 
-  List<Map<String, dynamic>> _generateSampleHabits() {
-    return [
-      {
-        'id': 'habit_sample_1',
-        'name': 'Morning Exercise',
-        'description': '30 minutes of exercise every morning',
-        'category': 'fitness',
-        'targetCount': 1,
-        'frequency': 'daily',
-        'createdAt': DateTime.now().subtract(const Duration(days: 7)).toIso8601String(),
-        'updatedAt': DateTime.now().toIso8601String(),
-        'isActive': true,
-        'color': '#FF6B6B',
-        'icon': 'fitness_center',
-        'currentStreak': 3,
-        'longestStreak': 5,
-        'completionRate': 0.7,
-      },
-      {
-        'id': 'habit_sample_2',
-        'name': 'Drink Water',
-        'description': 'Drink 8 glasses of water daily',
-        'category': 'nutrition',
-        'targetCount': 8,
-        'frequency': 'daily',
-        'createdAt': DateTime.now().subtract(const Duration(days: 5)).toIso8601String(),
-        'updatedAt': DateTime.now().toIso8601String(),
-        'isActive': true,
-        'color': '#4ECDC4',
-        'icon': 'local_drink',
-        'currentStreak': 2,
-        'longestStreak': 4,
-        'completionRate': 0.6,
-      },
-      {
-        'id': 'habit_sample_3',
-        'name': 'Read Books',
-        'description': 'Read for 30 minutes daily',
-        'category': 'productivity',
-        'targetCount': 1,
-        'frequency': 'daily',
-        'createdAt': DateTime.now().subtract(const Duration(days: 3)).toIso8601String(),
-        'updatedAt': DateTime.now().toIso8601String(),
-        'isActive': true,
-        'color': '#96CEB4',
-        'icon': 'menu_book',
-        'currentStreak': 1,
-        'longestStreak': 2,
-        'completionRate': 0.5,
-      },
-    ];
-  }
+  // List<Map<String, dynamic>> _generateSampleHabits() {
+  //   return [
+  //     {
+  //       'id': 'habit_sample_1',
+  //       'name': 'Morning Exercise',
+  //       'description': '30 minutes of exercise every morning',
+  //       'category': 'fitness',
+  //       'targetCount': 1,
+  //       'frequency': 'daily',
+  //       'createdAt': DateTime.now().subtract(const Duration(days: 7)).toIso8601String(),
+  //       'updatedAt': DateTime.now().toIso8601String(),
+  //       'isActive': true,
+  //       'color': '#FF6B6B',
+  //       'icon': 'fitness_center',
+  //       'currentStreak': 3,
+  //       'longestStreak': 5,
+  //       'completionRate': 0.7,
+  //     },
+  //     {
+  //       'id': 'habit_sample_2',
+  //       'name': 'Drink Water',
+  //       'description': 'Drink 8 glasses of water daily',
+  //       'category': 'nutrition',
+  //       'targetCount': 8,
+  //       'frequency': 'daily',
+  //       'createdAt': DateTime.now().subtract(const Duration(days: 5)).toIso8601String(),
+  //       'updatedAt': DateTime.now().toIso8601String(),
+  //       'isActive': true,
+  //       'color': '#4ECDC4',
+  //       'icon': 'local_drink',
+  //       'currentStreak': 2,
+  //       'longestStreak': 4,
+  //       'completionRate': 0.6,
+  //     },
+  //     {
+  //       'id': 'habit_sample_3',
+  //       'name': 'Read Books',
+  //       'description': 'Read for 30 minutes daily',
+  //       'category': 'productivity',
+  //       'targetCount': 1,
+  //       'frequency': 'daily',
+  //       'createdAt': DateTime.now().subtract(const Duration(days: 3)).toIso8601String(),
+  //       'updatedAt': DateTime.now().toIso8601String(),
+  //       'isActive': true,
+  //       'color': '#96CEB4',
+  //       'icon': 'menu_book',
+  //       'currentStreak': 1,
+  //       'longestStreak': 2,
+  //       'completionRate': 0.5,
+  //     },
+  //   ];
+  // }
 }

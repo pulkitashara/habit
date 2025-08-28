@@ -7,22 +7,13 @@ import 'presentation/providers/theme_provider.dart';
 import 'data/models/habit_model.dart';
 import 'data/models/habit_progress_model.dart';
 import 'data/models/user_model.dart';
+import 'data/datasources/local/hive_service.dart'; // ✅ Add this import
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Hive
-  await Hive.initFlutter();
-
-  // Register adapters (after running build_runner)
-  Hive.registerAdapter(HabitModelAdapter());
-  Hive.registerAdapter(HabitProgressModelAdapter());
-  Hive.registerAdapter(UserModelAdapter());
-
-  // Open boxes
-  await Hive.openBox<HabitModel>('habits');
-  await Hive.openBox<HabitProgressModel>('progress');
-  await Hive.openBox('settings');
+  // ✅ Initialize Hive using HiveService (prevents duplicate initialization)
+  await HiveService.initializeHive();
 
   runApp(const ProviderScope(child: MyApp()));
 }
@@ -33,7 +24,7 @@ class MyApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isDarkMode = ref.watch(themeProvider);
-    final router = ref.watch(routerProvider); // ✅ Watch the router provider
+    final router = ref.watch(routerProvider);
 
     return MaterialApp.router(
       title: 'Habit Builder',
@@ -41,7 +32,7 @@ class MyApp extends ConsumerWidget {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: isDarkMode ? ThemeMode.dark : ThemeMode.light,
-      routerConfig: router, // ✅ Pass the router instance, not a function
+      routerConfig: router,
     );
   }
 }

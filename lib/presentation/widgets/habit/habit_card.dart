@@ -7,12 +7,14 @@ class HabitCard extends StatelessWidget {
   final Habit habit;
   final VoidCallback onTap;
   final VoidCallback onToggleComplete;
+  final VoidCallback? onDelete;
 
   const HabitCard({
     super.key,
     required this.habit,
     required this.onTap,
     required this.onToggleComplete,
+    this.onDelete,
   });
 
   Color _getCategoryColor() {

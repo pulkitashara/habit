@@ -1,43 +1,92 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../domain/entities/habit.dart';
 import '../../providers/habit_provider.dart';
 import '../../widgets/common/custom_button.dart';
 import '../../widgets/common/custom_text_field.dart';
-import '../../../domain/entities/habit.dart';
-import '../../../core/theme/colors.dart';
 import '../../../core/utils/validators.dart';
 
-class CreateHabitScreen extends ConsumerStatefulWidget {
-  const CreateHabitScreen({super.key});
+class AddHabitScreen extends ConsumerStatefulWidget {
+  const AddHabitScreen({super.key});
 
   @override
-  ConsumerState<CreateHabitScreen> createState() => _CreateHabitScreenState();
+  ConsumerState<AddHabitScreen> createState() => _AddHabitScreenState();
 }
 
-class _CreateHabitScreenState extends ConsumerState<CreateHabitScreen> {
+class _AddHabitScreenState extends ConsumerState<AddHabitScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _descriptionController = TextEditingController();
-  final _targetController = TextEditingController();
 
   String _selectedCategory = 'fitness';
   String _selectedFrequency = 'daily';
+  int _targetCount = 1;
+  String _selectedColor = '#FF6B6B';
+  String _selectedIcon = 'fitness_center';
 
   final List<Map<String, dynamic>> _categories = [
-    {'name': 'Fitness', 'value': 'fitness', 'color': AppColors.fitness, 'icon': Icons.fitness_center},
-    {'name': 'Nutrition', 'value': 'nutrition', 'color': AppColors.nutrition, 'icon': Icons.restaurant},
-    {'name': 'Mindfulness', 'value': 'mindfulness', 'color': AppColors.mindfulness, 'icon': Icons.self_improvement},
-    {'name': 'Productivity', 'value': 'productivity', 'color': AppColors.productivity, 'icon': Icons.work},
-    {'name': 'Social', 'value': 'social', 'color': AppColors.social, 'icon': Icons.people},
+    {'value': 'fitness', 'label': 'Fitness', 'icon': Icons.fitness_center, 'iconName': 'fitness_center'},
+    {'value': 'nutrition', 'label': 'Nutrition', 'icon': Icons.restaurant, 'iconName': 'restaurant'},
+    {'value': 'mindfulness', 'label': 'Mindfulness', 'icon': Icons.self_improvement, 'iconName': 'self_improvement'},
+    {'value': 'productivity', 'label': 'Productivity', 'icon': Icons.work, 'iconName': 'work'},
+    {'value': 'health', 'label': 'Health', 'icon': Icons.health_and_safety, 'iconName': 'health_and_safety'},
+  ];
+
+  final List<String> _colors = [
+    '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+    '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9'
   ];
 
   @override
   void dispose() {
     _nameController.dispose();
     _descriptionController.dispose();
-    _targetController.dispose();
     super.dispose();
+  }
+
+  Future<void> _saveHabit() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final habit = Habit(
+      id: 'habit_${DateTime.now().millisecondsSinceEpoch}',
+      name: _nameController.text.trim(),
+      description: _descriptionController.text.trim(),
+      category: _selectedCategory,
+      targetCount: _targetCount,
+      frequency: _selectedFrequency,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+      isActive: true,
+      color: _selectedColor,
+      icon: _selectedIcon,
+      currentStreak: 0,
+      longestStreak: 0,
+      completionRate: 0.0,
+    );
+
+    try {
+      await ref.read(habitProvider.notifier).createHabit(habit);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Habit created successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        context.pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to create habit: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -46,22 +95,27 @@ class _CreateHabitScreenState extends ConsumerState<CreateHabitScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Create New Habit'),
-        backgroundColor: _getSelectedCategoryColor().withValues(alpha: 0.1),
+        title: const Text('Add New Habit'),
+        elevation: 0,
       ),
-      body: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Form(
+          key: _formKey,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Habit Name
               CustomTextField(
                 controller: _nameController,
                 labelText: 'Habit Name',
-                prefixIcon: Icons.psychology,
-                validator: Validators.habitName,
+                prefixIcon: Icons.label_outline,
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Please enter a habit name';
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 16),
 
@@ -69,7 +123,7 @@ class _CreateHabitScreenState extends ConsumerState<CreateHabitScreen> {
               CustomTextField(
                 controller: _descriptionController,
                 labelText: 'Description (Optional)',
-                prefixIcon: Icons.description,
+                prefixIcon: Icons.description_outlined,
                 maxLines: 3,
               ),
               const SizedBox(height: 24),
@@ -77,246 +131,117 @@ class _CreateHabitScreenState extends ConsumerState<CreateHabitScreen> {
               // Category Selection
               Text(
                 'Category',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: Theme.of(context).textTheme.titleMedium,
               ),
-              const SizedBox(height: 12),
-
+              const SizedBox(height: 8),
               Wrap(
-                spacing: 12,
-                runSpacing: 12,
+                spacing: 8,
+                runSpacing: 8,
                 children: _categories.map((category) {
                   final isSelected = _selectedCategory == category['value'];
+                  return FilterChip(
+                    label: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(category['icon'], size: 16),
+                        const SizedBox(width: 4),
+                        Text(category['label']),
+                      ],
+                    ),
+                    selected: isSelected,
+                    onSelected: (selected) {
+                      setState(() {
+                        _selectedCategory = category['value'];
+                        _selectedIcon = category['iconName'];
+                      });
+                    },
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 24),
+
+              // Target Count
+              Text(
+                'Daily Target',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  IconButton(
+                    onPressed: _targetCount > 1 ? () {
+                      setState(() {
+                        _targetCount--;
+                      });
+                    } : null,
+                    icon: const Icon(Icons.remove),
+                  ),
+                  Text(
+                    '$_targetCount',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  IconButton(
+                    onPressed: () {
+                      setState(() {
+                        _targetCount++;
+                      });
+                    },
+                    icon: const Icon(Icons.add),
+                  ),
+                  const SizedBox(width: 16),
+                  Text(
+                    _targetCount == 1 ? 'time per day' : 'times per day',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              // Color Selection
+              Text(
+                'Color',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _colors.map((color) {
+                  final isSelected = _selectedColor == color;
                   return GestureDetector(
                     onTap: () {
                       setState(() {
-                        _selectedCategory = category['value'];
+                        _selectedColor = color;
                       });
                     },
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      width: 40,
+                      height: 40,
                       decoration: BoxDecoration(
-                        color: isSelected
-                            ? category['color'].withValues(alpha: 0.2)
-                            : Colors.grey.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: isSelected
-                              ? category['color']
-                              : Colors.grey.withValues(alpha: 0.3),
-                          width: 2,
-                        ),
+                        color: Color(int.parse(color.substring(1, 7), radix: 16) + 0xFF000000),
+                        shape: BoxShape.circle,
+                        border: isSelected ? Border.all(color: Colors.black, width: 3) : null,
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            category['icon'],
-                            color: isSelected ? category['color'] : Colors.grey,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            category['name'],
-                            style: TextStyle(
-                              color: isSelected ? category['color'] : Colors.grey,
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                            ),
-                          ),
-                        ],
-                      ),
+                      child: isSelected
+                          ? const Icon(Icons.check, color: Colors.white)
+                          : null,
                     ),
                   );
                 }).toList(),
               ),
-
-              const SizedBox(height: 24),
-
-              // Target and Frequency
-              Row(
-                children: [
-                  Expanded(
-                    flex: 2,
-                    child: CustomTextField(
-                      controller: _targetController,
-                      labelText: 'Target Count',
-                      prefixIcon: Icons.flag,
-                      keyboardType: TextInputType.number,
-                      validator: (value) => Validators.positiveInteger(value, 'Target count'),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    flex: 3,
-                    child: DropdownButtonFormField<String>(
-                      initialValue: _selectedFrequency,
-                      decoration: const InputDecoration(
-                        labelText: 'Frequency',
-                        prefixIcon: Icon(Icons.repeat),
-                      ),
-                      items: const [
-                        DropdownMenuItem(value: 'daily', child: Text('Daily')),
-                        DropdownMenuItem(value: 'weekly', child: Text('Weekly')),
-                      ],
-                      onChanged: (value) {
-                        if (value != null) {
-                          setState(() {
-                            _selectedFrequency = value;
-                          });
-                        }
-                      },
-                    ),
-                  ),
-                ],
-              ),
-
               const SizedBox(height: 32),
 
-              // Preview Card
-              Card(
-                color: _getSelectedCategoryColor().withValues(alpha: 0.1),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Preview',
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: _getSelectedCategoryColor().withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Icon(
-                              _getSelectedCategoryIcon(),
-                              color: _getSelectedCategoryColor(),
-                              size: 20,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _nameController.text.isEmpty
-                                      ? 'Habit Name'
-                                      : _nameController.text,
-                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                Text(
-                                  _selectedCategory.toUpperCase(),
-                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: _getSelectedCategoryColor(),
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (_descriptionController.text.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          _descriptionController.text,
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                      ],
-                      const SizedBox(height: 8),
-                      Text(
-                        'Target: ${_targetController.text.isEmpty ? "1" : _targetController.text} times $_selectedFrequency',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+              // Save Button
+              habitState.isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : CustomButton(
+                text: 'Create Habit',
+                onPressed: _saveHabit,
               ),
             ],
           ),
         ),
       ),
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          border: Border(
-            top: BorderSide(
-              color: Theme.of(context).dividerColor,
-              width: 0.5,
-            ),
-          ),
-        ),
-        child: SafeArea(
-          child: habitState.isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : CustomButton(
-            text: 'Create Habit',
-            onPressed: _createHabit,
-            backgroundColor: _getSelectedCategoryColor(),
-          ),
-        ),
-      ),
     );
-  }
-
-  Color _getSelectedCategoryColor() {
-    final category = _categories.firstWhere(
-          (cat) => cat['value'] == _selectedCategory,
-      orElse: () => _categories.first,
-    );
-    return category['color'];
-  }
-
-  IconData _getSelectedCategoryIcon() {
-    final category = _categories.firstWhere(
-          (cat) => cat['value'] == _selectedCategory,
-      orElse: () => _categories.first,
-    );
-    return category['icon'];
-  }
-
-  Future<void> _createHabit() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    final habit = Habit(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      name: _nameController.text.trim(),
-      description: _descriptionController.text.trim(),
-      category: _selectedCategory,
-      targetCount: int.tryParse(_targetController.text) ?? 1,
-      frequency: _selectedFrequency,
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-      isActive: true,
-      color: '#${_getSelectedCategoryColor().value.toRadixString(16).padLeft(8, '0').substring(2)}',
-      icon: _getSelectedCategoryIcon().toString(),
-    );
-
-    await ref.read(habitProvider.notifier).createHabit(habit);
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${habit.name} created successfully!'),
-          backgroundColor: _getSelectedCategoryColor(),
-        ),
-      );
-      context.pop();
-    }
   }
 }

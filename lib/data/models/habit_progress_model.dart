@@ -5,7 +5,6 @@ import '../../domain/entities/habit_progress.dart';
 part 'habit_progress_model.g.dart';
 
 @HiveType(typeId: 1)
-@JsonSerializable()
 class HabitProgressModel extends HiveObject {
   @HiveField(0)
   final String id;
@@ -46,11 +45,6 @@ class HabitProgressModel extends HiveObject {
     this.synced = false,
   });
 
-  factory HabitProgressModel.fromJson(Map<String, dynamic> json) =>
-      _$HabitProgressModelFromJson(json);
-
-  Map<String, dynamic> toJson() => _$HabitProgressModelToJson(this);
-
   HabitProgress toEntity() {
     return HabitProgress(
       id: id,
@@ -65,41 +59,17 @@ class HabitProgressModel extends HiveObject {
     );
   }
 
-  static HabitProgressModel fromEntity(HabitProgress progress) {
+  factory HabitProgressModel.fromEntity(HabitProgress entity) {
     return HabitProgressModel(
-      id: progress.id,
-      habitId: progress.habitId,
-      date: progress.date,
-      completed: progress.completed,
-      target: progress.target,
-      isCompleted: progress.isCompleted,
-      notes: progress.notes,
-      createdAt: progress.createdAt,
-      synced: progress.synced,
-    );
-  }
-
-  HabitProgressModel copyWith({
-    String? id,
-    String? habitId,
-    DateTime? date,
-    int? completed,
-    int? target,
-    bool? isCompleted,
-    String? notes,
-    DateTime? createdAt,
-    bool? synced,
-  }) {
-    return HabitProgressModel(
-      id: id ?? this.id,
-      habitId: habitId ?? this.habitId,
-      date: date ?? this.date,
-      completed: completed ?? this.completed,
-      target: target ?? this.target,
-      isCompleted: isCompleted ?? this.isCompleted,
-      notes: notes ?? this.notes,
-      createdAt: createdAt ?? this.createdAt,
-      synced: synced ?? this.synced,
+      id: entity.id,
+      habitId: entity.habitId,
+      date: entity.date,
+      completed: entity.completed,
+      target: entity.target,
+      isCompleted: entity.isCompleted,
+      notes: entity.notes,
+      createdAt: entity.createdAt,
+      synced: entity.synced,
     );
   }
 }
