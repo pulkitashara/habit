@@ -6,6 +6,7 @@ import '../../core/errors/failures.dart';
 import '../../core/exceptions/api_exception.dart';
 import '../../data/datasources/local/hive_service.dart';
 import 'api_providers.dart';
+import 'habit_provider.dart';
 
 class AuthState {
   final bool isLoading;
@@ -71,25 +72,20 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<Either<Failure, void>> login(String username, String password) async {
-    state = state.copyWith(isLoading: true, error: null);
-    _ref.read(apiLoadingProvider.notifier).state = true;
-
     try {
-      // Call mock API
       final response = await _apiService.login(username, password);
-
-      // Extract data from response
       final token = response['token'];
       final userData = response['user'];
 
-      // Store auth data
-      await HiveService.saveSetting('auth_token', token);
-      await HiveService.saveSetting('refresh_token', response['refreshToken']);
-      await HiveService.saveSetting('user_data', userData);
+      final userId = userData['id'].toString();
 
-      // Create user entity
+      // Save auth data
+      await HiveService.saveSetting('auth_token', token);
+      await HiveService.saveSetting('user_data', userData);
+      await HiveService.setCurrentUser(userId);
+
       final user = User(
-        id: userData['id'],
+        id: userId,
         username: userData['username'],
         email: userData['email'],
         firstName: userData['firstName'],
@@ -98,9 +94,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
         updatedAt: DateTime.now(),
       );
 
-      await HiveService.setCurrentUser(user.id);
-
-
       state = state.copyWith(
         isLoading: false,
         user: user,
@@ -108,9 +101,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
         token: token,
         error: null,
       );
+      _ref.read(habitProvider.notifier).loadHabits();
 
-      _ref.read(apiLoadingProvider.notifier).state = false;
-      _ref.read(apiErrorProvider.notifier).state = null;
 
       return const Right(null);
     } catch (e) {

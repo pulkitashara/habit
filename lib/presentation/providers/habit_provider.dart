@@ -75,32 +75,44 @@ class HabitNotifier extends StateNotifier<HabitState> {
     await loadHabits();
   }
 
+  // In HabitProvider
   Future<void> loadHabits() async {
     state = state.copyWith(isLoading: true, error: null);
 
     try {
-      // ✅ Always load from local storage first
+      final currentUserId = HiveService.getCurrentUserId();
+      print('🔍 Loading habits for user: $currentUserId'); // Debug log
+
+      if (currentUserId == null) {
+        print('❌ No current user ID found');
+        state = state.copyWith(habits: [], isLoading: false);
+        return;
+      }
+
+      // Load from local storage first
       final localHabits = HiveService.getAllHabits()
           .map((model) => model.toEntity())
           .toList();
 
-      localHabits.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      print('📊 Found ${localHabits.length} habits for user $currentUserId'); // Debug log
 
-      // ✅ Update UI with local data immediately
+      localHabits.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       state = state.copyWith(habits: localHabits, isLoading: false);
 
-      // ✅ Only sync with API in background, don't replace local data
+      // Background API sync
       final authState = _ref.read(authProvider);
       if (authState.isAuthenticated && authState.token != null) {
         _syncWithApiInBackground(authState.token!);
       }
     } catch (e) {
+      print('❌ Error loading habits: $e');
       state = state.copyWith(
         isLoading: false,
         error: 'Failed to load habits: ${e.toString()}',
       );
     }
   }
+
 
 // ✅ Background sync that doesn't overwrite local progress
   Future<void> _syncWithApiInBackground(String token) async {
