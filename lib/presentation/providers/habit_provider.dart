@@ -56,6 +56,20 @@ class HabitNotifier extends StateNotifier<HabitState> {
     _initializeData();
   }
 
+  // Remove habit immediately from UI state list (no DB operation)
+  void removeHabitFromState(String habitId) {
+    final updatedList = [...state.habits]..removeWhere((habit) => habit.id == habitId);
+    state = state.copyWith(habits: updatedList);
+  }
+
+// Add habit immediately to UI state list (no DB operation)
+  Future<void> addHabit(Habit habit) async {
+    final updatedList = [habit, ...state.habits];
+    state = state.copyWith(habits: updatedList);
+    await HiveService.saveHabit(HabitModel.fromEntity(habit));
+  }
+
+
   Future<void> _initializeData() async {
     //await HiveService.initializeSampleData();
     await loadHabits();
@@ -65,20 +79,20 @@ class HabitNotifier extends StateNotifier<HabitState> {
     state = state.copyWith(isLoading: true, error: null);
 
     try {
-      // Load from local storage first
+      // ✅ Always load from local storage first
       final localHabits = HiveService.getAllHabits()
           .map((model) => model.toEntity())
           .toList();
 
-      // Sort by creation date for consistency (newest first)
       localHabits.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
+      // ✅ Update UI with local data immediately
       state = state.copyWith(habits: localHabits, isLoading: false);
 
-      // Try to sync with API if authenticated
+      // ✅ Only sync with API in background, don't replace local data
       final authState = _ref.read(authProvider);
       if (authState.isAuthenticated && authState.token != null) {
-        await _syncWithApi(authState.token!);
+        _syncWithApiInBackground(authState.token!);
       }
     } catch (e) {
       state = state.copyWith(
@@ -88,14 +102,36 @@ class HabitNotifier extends StateNotifier<HabitState> {
     }
   }
 
+// ✅ Background sync that doesn't overwrite local progress
+  Future<void> _syncWithApiInBackground(String token) async {
+    try {
+      state = state.copyWith(isSyncing: true);
+      final response = await _apiService.getHabits(token);
+
+      // ✅ Simple approach: Just update isSyncing status, keep local data
+      state = state.copyWith(isSyncing: false, isOnline: true);
+
+      // Optional: You can update with API data if needed, but preserve local progress
+      if (response != null && response.isNotEmpty) {
+        print('✅ API sync successful');
+      }
+    } catch (e) {
+      print('Background sync failed: $e');
+      state = state.copyWith(isSyncing: false, isOnline: false);
+    }
+  }
+
+
+
+
   Future<void> _syncWithApi(String token) async {
     try {
       state = state.copyWith(isSyncing: true);
 
       final response = await _apiService.getHabits(token);
 
-      // Convert API response to habits
-      final apiHabits = response.map((habitData) {
+      // ✅ FIX: Handle null response properly
+      final apiHabits = (response ?? []).map((habitData) {
         return Habit.fromJson(habitData);
       }).toList();
 
@@ -116,10 +152,11 @@ class HabitNotifier extends StateNotifier<HabitState> {
       state = state.copyWith(
         isSyncing: false,
         isOnline: false,
-        error: 'Using offline data. Sync failed.',
+        error: null, // Don't show error for sync failures
       );
     }
   }
+
 
   Future<void> createHabit(Habit habit) async {
     try {
@@ -167,6 +204,7 @@ class HabitNotifier extends StateNotifier<HabitState> {
     }
   }
 
+  // In your HabitProvider
   Future<void> markHabitComplete(String habitId) async {
     try {
       final habitIndex = state.habits.indexWhere((h) => h.id == habitId);
@@ -175,13 +213,14 @@ class HabitNotifier extends StateNotifier<HabitState> {
       final habit = state.habits[habitIndex];
       final now = DateTime.now();
 
-      // ✅ Check if already completed today using date-only comparison
+      // Check if already completed today
       final todayProgress = HiveService.getTodayProgress(habitId);
       if (todayProgress?.isCompleted == true) {
         state = state.copyWith(error: 'Habit already completed today');
         return;
       }
 
+      // Create progress entry
       final progress = HabitProgress(
         id: '${habitId}_${now.millisecondsSinceEpoch}',
         habitId: habitId,
@@ -192,53 +231,42 @@ class HabitNotifier extends StateNotifier<HabitState> {
         createdAt: now,
       );
 
-      // ✅ Save progress with date-based key
+      // ✅ Save progress to Hive IMMEDIATELY
       final progressModel = HabitProgressModel.fromEntity(progress);
       await HiveService.saveProgress(progressModel);
 
-      // ✅ Recalculate stats properly
+      // ✅ Recalculate stats from Hive data (not memory)
       final newStreak = HiveService.calculateCurrentStreak(habitId);
       final newCompletionRate = HiveService.calculateCompletionRate(habitId);
 
       // Update habit with new stats
-      final updatedHabits = List<Habit>.from(state.habits);
-      updatedHabits[habitIndex] = habit.copyWith(
+      final updatedHabit = habit.copyWith(
         currentStreak: newStreak,
         longestStreak: newStreak > habit.longestStreak ? newStreak : habit.longestStreak,
         completionRate: newCompletionRate,
       );
 
-      // ✅ Update local Hive storage
-      final updatedHabitModel = HabitModel.fromEntity(updatedHabits[habitIndex]);
-      await HiveService.saveHabit(updatedHabitModel);
+      // ✅ Save updated habit to Hive IMMEDIATELY
+      await HiveService.saveHabit(HabitModel.fromEntity(updatedHabit));
 
-      // Update progress map for UI
+      // Update UI state
+      final updatedHabits = List<Habit>.from(state.habits);
+      updatedHabits[habitIndex] = updatedHabit;
+
       final updatedProgress = Map<String, List<HabitProgress>>.from(state.habitProgress);
-      if (!updatedProgress.containsKey(habitId)) {
-        updatedProgress[habitId] = [];
-      }
-      updatedProgress[habitId] = [progress, ...updatedProgress[habitId]!];
+      updatedProgress[habitId] = [progress, ...(updatedProgress[habitId] ?? [])];
 
       state = state.copyWith(
         habits: updatedHabits,
         habitProgress: updatedProgress,
       );
 
-      // Try API sync in background
-      final authState = _ref.read(authProvider);
-      if (authState.isAuthenticated && authState.token != null) {
-        try {
-          final progressData = progress.toJson();
-          await _apiService.updateHabitProgress(authState.token!, habitId, progressData);
-        } catch (e) {
-          print('Failed to sync progress to API: $e');
-        }
-      }
-
     } catch (e) {
       state = state.copyWith(error: 'Failed to mark habit complete: ${e.toString()}');
     }
   }
+
+
 
 
   Future<void> loadHabitProgress(String habitId) async {

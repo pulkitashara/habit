@@ -49,6 +49,9 @@ class HabitModel extends HiveObject {
   @HiveField(13)
   final double completionRate;
 
+  @HiveField(14)
+  final String userId;
+
   HabitModel({
     required this.id,
     required this.name,

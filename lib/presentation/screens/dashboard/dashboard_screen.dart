@@ -1,4 +1,3 @@
-// lib/presentation/screens/dashboard/dashboard_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,7 +10,7 @@ import '../../widgets/habit/habit_card.dart';
 import '../../widgets/common/loading_widget.dart';
 import '../../widgets/common/error_widget.dart';
 import '../../routes/route_names.dart';
-import '../../../data/datasources/local/hive_service.dart'; // ✅ Add this import
+import '../../../data/datasources/local/hive_service.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -20,14 +19,32 @@ class DashboardScreen extends ConsumerStatefulWidget {
   ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+// Update your DashboardScreen class
+class _DashboardScreenState extends ConsumerState<DashboardScreen> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
-    // Load habits when screen initializes
+    // Add lifecycle observer
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(habitProvider.notifier).loadHabits();
     });
+  }
+
+  @override
+  void dispose() {
+    // Remove observer to prevent memory leaks
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // ✅ This detects when app comes back to foreground
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Reload data when app resumes (handles date changes)
+      ref.read(habitProvider.notifier).loadHabits();
+    }
   }
 
   Future<void> _refreshHabits() async {
@@ -62,11 +79,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     ref.read(habitProvider.notifier).clearError();
   }
 
-  // ✅ Debug method to show storage info
   void _showDebugDialog() {
-    HiveService.debugPrintStorage(); // Prints to console
+    HiveService.debugPrintStorage();
 
-    // Also show in a dialog for easy viewing
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -76,6 +91,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
+              Text('Hive Initialized: ${HiveService.isInitialized}'),
+              Text('Habits Count: ${HiveService.getAllHabits().length}'),
+              Text('Current Date: ${DateTime.now().toString().split(' ')[0]}'),
               Text('Habits Count: ${HiveService.getAllHabits().length}'),
               const SizedBox(height: 8),
               Text('Progress Count: ${HiveService.getAllHabits().map((h) => HiveService.getHabitProgress(h.id).length).fold(0, (a, b) => a + b)}'),
@@ -102,7 +120,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('Close'),
           ),
-          // ✅ Add clear data button for testing
           TextButton(
             onPressed: () async {
               await HiveService.clearAllData();
@@ -133,14 +150,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         backgroundColor: Theme.of(context).colorScheme.primary,
         foregroundColor: Theme.of(context).colorScheme.onPrimary,
         actions: [
-          // ✅ Debug button (remove this in production)
           IconButton(
             onPressed: _showDebugDialog,
             icon: const Icon(Icons.bug_report),
             tooltip: 'Debug Storage',
           ),
-
-          // Network status indicator
           if (!isOnline)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -154,15 +168,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 children: [
                   Icon(Icons.wifi_off, size: 14, color: Colors.white),
                   SizedBox(width: 4),
-                  Text(
-                    'Offline',
-                    style: TextStyle(fontSize: 12, color: Colors.white),
-                  ),
+                  Text('Offline', style: TextStyle(fontSize: 12, color: Colors.white)),
                 ],
               ),
             ),
-
-          // Sync indicator
           if (habitState.isSyncing)
             Container(
               padding: const EdgeInsets.all(8),
@@ -175,22 +184,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 ),
               ),
             ),
-
-          // Theme toggle
           IconButton(
             icon: Icon(isDarkMode ? Icons.light_mode : Icons.dark_mode),
             onPressed: () => ref.read(themeProvider.notifier).toggleTheme(),
           ),
-
-          // Menu
           PopupMenuButton<String>(
             onSelected: (value) {
               switch (value) {
                 case 'profile':
-                // TODO: Navigate to profile
                   break;
                 case 'settings':
-                // TODO: Navigate to settings
                   break;
                 case 'debug':
                   _showDebugDialog();
@@ -222,7 +225,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         onRefresh: _refreshHabits,
         child: CustomScrollView(
           slivers: [
-            // API Error Banner
             if (apiError != null)
               SliverToBoxAdapter(
                 child: Container(
@@ -246,8 +248,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   ),
                 ),
               ),
-
-            // Habit State Error Banner
             if (habitState.error != null)
               SliverToBoxAdapter(
                 child: Container(
@@ -271,8 +271,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   ),
                 ),
               ),
-
-            // Dashboard Header
             SliverToBoxAdapter(
               child: DashboardHeader(
                 user: authState.user,
@@ -281,8 +279,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 currentStreak: _calculateMaxStreak(habitState.habits),
               ),
             ),
-
-            // Habits List
             if (habitState.isLoading)
               const SliverFillRemaining(
                 child: Center(child: LoadingWidget()),
@@ -299,26 +295,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         (context, index) {
                       final habit = habitState.habits[index];
                       return Dismissible(
-                        key: ValueKey(habit.id), // Required: unique key for each item
-                        direction: DismissDirection.endToStart, // Swipe left to delete
-                        background: Container(
-                          alignment: Alignment.centerRight,
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          margin: const EdgeInsets.only(bottom: 12),
-
-
-                          decoration: BoxDecoration( // 👈 use decoration instead of color
-                            color: Colors.red.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8), // match HabitCard if needed
-                            border: Border.all(
-                              color: Colors.red,
-                              width: 1.5,
-                            ),
-                          ),
-                          child: const Icon(Icons.delete, color: Colors.red, size: 32),
-                        ),
+                        key: ValueKey(habit.id),
+                        direction: DismissDirection.endToStart,
                         confirmDismiss: (direction) async {
-                          // Optional: confirm with dialog
                           return await showDialog<bool>(
                             context: context,
                             builder: (ctx) => AlertDialog(
@@ -331,16 +310,40 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                             ),
                           );
                         },
-                        onDismissed: (_) async {
-                          await ref.read(habitProvider.notifier).deleteHabit(habit.id);
+                        background: ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: Container(
+                            color: Colors.red.withOpacity(0.12),
+                            alignment: Alignment.centerRight,
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            child: const Icon(Icons.delete, color: Colors.red),
+                          ),
+                        ),
+                        onDismissed: (direction) {
+                          final deletedHabit = habit;
+                          ref.read(habitProvider.notifier).removeHabitFromState(deletedHabit.id);
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Habit deleted!')),
+                            SnackBar(
+                              content: Text('${deletedHabit.name} deleted'),
+                              action: SnackBarAction(
+                                label: 'Undo',
+                                onPressed: () async {
+                                  await ref.read(habitProvider.notifier).addHabit(deletedHabit);
+                                },
+                              ),
+                              duration: const Duration(seconds: 5),
+                            ),
                           );
+                          Future.delayed(const Duration(seconds: 5), () async {
+                            final exists = ref.read(habitProvider).habits.any((h) => h.id == deletedHabit.id);
+                            if (!exists) {
+                              await ref.read(habitProvider.notifier).deleteHabit(deletedHabit.id);
+                            }
+                          });
                         },
                         child: Padding(
                           padding: const EdgeInsets.only(bottom: 12),
                           child: HabitCard(
-                            key: ValueKey(habit.id),
                             habit: habit,
                             onTap: () {
                               ref.read(habitProvider.notifier).loadHabitProgress(habit.id);
@@ -356,8 +359,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     childCount: habitState.habits.length,
                   ),
                 ),
-              )
-
+              ),
           ],
         ),
       ),
@@ -413,13 +415,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  // ✅ Helper method to calculate completed habits today
   int _calculateCompletedToday(List<dynamic> habits) {
     final today = DateTime.now();
     int completedCount = 0;
 
     for (final habit in habits) {
-      // Check if this habit has progress for today using HiveService
       final todayProgress = HiveService.getTodayProgress(habit.id);
       if (todayProgress?.isCompleted == true) {
         completedCount++;
@@ -429,7 +429,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     return completedCount;
   }
 
-  // ✅ Helper method to calculate max streak
   int _calculateMaxStreak(List<dynamic> habits) {
     if (habits.isEmpty) return 0;
     return habits.map((h) => h.currentStreak as int).reduce((a, b) => a > b ? a : b);

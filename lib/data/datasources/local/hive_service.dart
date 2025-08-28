@@ -85,7 +85,7 @@ class HiveService {
 
   // ✅ Progress operations with date-based keys
   static Future<void> saveProgress(HabitProgressModel progress) async {
-    // Use a unique key that includes habitId and date
+    // ✅ Use date-based key for consistent daily tracking
     final dateKey = '${progress.habitId}_${_getDateKey(progress.date)}';
     await _progressBoxInstance.put(dateKey, progress);
   }
@@ -118,28 +118,23 @@ class HiveService {
 
     if (allProgress.isEmpty) return 0;
 
-    // Sort by date descending
     allProgress.sort((a, b) => b.date.compareTo(a.date));
 
     int streak = 0;
     DateTime checkDate = DateTime.now();
 
-    // Check if today is completed first
-    final todayProgress = getProgressForDate(habitId, checkDate);
-    if (todayProgress?.isCompleted != true) {
-      // If today isn't completed, start from yesterday
-      checkDate = checkDate.subtract(const Duration(days: 1));
-    }
-
-    // Check consecutive days backwards
-    for (int i = 0; i < 365; i++) { // Max 365 days to prevent infinite loop
+    // Check consecutive days backwards from today
+    for (int i = 0; i < 365; i++) { // Max check to prevent infinite loop
       final progress = getProgressForDate(habitId, checkDate);
 
-      if (progress != null && progress.isCompleted) {
+      if (progress?.isCompleted == true) {
         streak++;
         checkDate = checkDate.subtract(const Duration(days: 1));
+      } else if (i == 0) {
+        // If today isn't completed, check yesterday
+        checkDate = checkDate.subtract(const Duration(days: 1));
+        continue;
       } else {
-        // Streak is broken
         break;
       }
     }
@@ -156,7 +151,6 @@ class HiveService {
     final completedDays = getHabitProgress(habitId)
         .where((p) => p.isCompleted)
         .length;
-
     return daysSinceCreation > 0 ? completedDays / daysSinceCreation : 0.0;
   }
 
@@ -172,6 +166,14 @@ class HiveService {
   // ✅ Helper methods for date handling
   static String _getDateKey(DateTime date) {
     return '${date.year}_${date.month.toString().padLeft(2, '0')}_${date.day.toString().padLeft(2, '0')}';
+  }
+
+  static bool get isInitialized {
+    try {
+      return Hive.isBoxOpen('habits') && Hive.isBoxOpen('progress');
+    } catch (e) {
+      return false;
+    }
   }
 
   static bool _isSameDate(DateTime date1, DateTime date2) {
