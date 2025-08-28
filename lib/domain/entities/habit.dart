@@ -13,6 +13,7 @@ class Habit {
   final int currentStreak;
   final int longestStreak;
   final double completionRate;
+  final String userId;
 
   Habit({
     required this.id,
@@ -29,6 +30,7 @@ class Habit {
     this.currentStreak = 0,
     this.longestStreak = 0,
     this.completionRate = 0.0,
+    required this.userId,
   });
 
   // ✅ Add copyWith method
@@ -47,6 +49,7 @@ class Habit {
     int? currentStreak,
     int? longestStreak,
     double? completionRate,
+    String? userId,
   }) {
     return Habit(
       id: id ?? this.id,
@@ -63,6 +66,7 @@ class Habit {
       currentStreak: currentStreak ?? this.currentStreak,
       longestStreak: longestStreak ?? this.longestStreak,
       completionRate: completionRate ?? this.completionRate,
+      userId: userId ?? this.userId,
     );
   }
 
@@ -83,6 +87,7 @@ class Habit {
       'currentStreak': currentStreak,
       'longestStreak': longestStreak,
       'completionRate': completionRate,
+      'userId': userId,
     };
   }
 
@@ -103,6 +108,7 @@ class Habit {
       currentStreak: json['currentStreak'] ?? 0,
       longestStreak: json['longestStreak'] ?? 0,
       completionRate: json['completionRate']?.toDouble() ?? 0.0,
+      userId: json['userId'],
     );
   }
 }

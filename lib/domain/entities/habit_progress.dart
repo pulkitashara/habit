@@ -8,6 +8,7 @@ class HabitProgress {
   final String? notes;
   final DateTime createdAt;
   final bool synced;
+  final String userId; // ✅ Added userId field
 
   HabitProgress({
     required this.id,
@@ -19,9 +20,9 @@ class HabitProgress {
     this.notes,
     required this.createdAt,
     this.synced = false,
+    required this.userId, // ✅ Added to constructor
   });
 
-  // ✅ Add toJson method
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -33,10 +34,10 @@ class HabitProgress {
       'notes': notes,
       'createdAt': createdAt.toIso8601String(),
       'synced': synced,
+      'userId': userId, // ✅ Added to JSON
     };
   }
 
-  // ✅ Add fromJson factory
   static HabitProgress fromJson(Map<String, dynamic> json) {
     return HabitProgress(
       id: json['id'],
@@ -48,6 +49,7 @@ class HabitProgress {
       notes: json['notes'],
       createdAt: DateTime.parse(json['createdAt']),
       synced: json['synced'] ?? false,
+      userId: json['userId'], // ✅ Added from JSON
     );
   }
 }

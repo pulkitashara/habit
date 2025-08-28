@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../data/datasources/local/hive_service.dart';
 import '../../../domain/entities/habit.dart';
 import '../../providers/habit_provider.dart';
 import '../../widgets/common/custom_button.dart';
@@ -63,6 +64,7 @@ class _AddHabitScreenState extends ConsumerState<AddHabitScreen> {
       currentStreak: 0,
       longestStreak: 0,
       completionRate: 0.0,
+      userId: HiveService.getCurrentUserId() ?? '',
     );
 
     try {

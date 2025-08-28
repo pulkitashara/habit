@@ -287,6 +287,7 @@ class _HabitDetailScreenState extends ConsumerState<HabitDetailScreen>
                     ? const Center(child: LoadingWidget())
                     : ProgressChart(
                   habitId: habit.id,
+                  userId: habit.userId,
                   progressData: habitState.habitProgress[habit.id] ?? [],
                   color: _getCategoryColor(habit.category),
                 ),

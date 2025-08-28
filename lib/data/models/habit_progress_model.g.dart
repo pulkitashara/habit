@@ -26,13 +26,14 @@ class HabitProgressModelAdapter extends TypeAdapter<HabitProgressModel> {
       notes: fields[6] as String?,
       createdAt: fields[7] as DateTime,
       synced: fields[8] as bool,
+      userId: fields[9] as String,
     );
   }
 
   @override
   void write(BinaryWriter writer, HabitProgressModel obj) {
     writer
-      ..writeByte(9)
+      ..writeByte(10)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -50,7 +51,9 @@ class HabitProgressModelAdapter extends TypeAdapter<HabitProgressModel> {
       ..writeByte(7)
       ..write(obj.createdAt)
       ..writeByte(8)
-      ..write(obj.synced);
+      ..write(obj.synced)
+      ..writeByte(9)
+      ..write(obj.userId);
   }
 
   @override
@@ -63,33 +66,3 @@ class HabitProgressModelAdapter extends TypeAdapter<HabitProgressModel> {
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }
-
-// **************************************************************************
-// JsonSerializableGenerator
-// **************************************************************************
-
-HabitProgressModel _$HabitProgressModelFromJson(Map<String, dynamic> json) =>
-    HabitProgressModel(
-      id: json['id'] as String,
-      habitId: json['habitId'] as String,
-      date: DateTime.parse(json['date'] as String),
-      completed: (json['completed'] as num).toInt(),
-      target: (json['target'] as num).toInt(),
-      isCompleted: json['isCompleted'] as bool,
-      notes: json['notes'] as String?,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      synced: json['synced'] as bool? ?? false,
-    );
-
-Map<String, dynamic> _$HabitProgressModelToJson(HabitProgressModel instance) =>
-    <String, dynamic>{
-      'id': instance.id,
-      'habitId': instance.habitId,
-      'date': instance.date.toIso8601String(),
-      'completed': instance.completed,
-      'target': instance.target,
-      'isCompleted': instance.isCompleted,
-      'notes': instance.notes,
-      'createdAt': instance.createdAt.toIso8601String(),
-      'synced': instance.synced,
-    };

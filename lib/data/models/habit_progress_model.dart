@@ -33,6 +33,9 @@ class HabitProgressModel extends HiveObject {
   @HiveField(8)
   final bool synced;
 
+  @HiveField(9) // ✅ Added userId field
+  final String userId;
+
   HabitProgressModel({
     required this.id,
     required this.habitId,
@@ -43,6 +46,7 @@ class HabitProgressModel extends HiveObject {
     this.notes,
     required this.createdAt,
     this.synced = false,
+    required this.userId, // ✅ Added to constructor
   });
 
   HabitProgress toEntity() {
@@ -56,6 +60,7 @@ class HabitProgressModel extends HiveObject {
       notes: notes,
       createdAt: createdAt,
       synced: synced,
+      userId: userId, // ✅ Added to entity conversion
     );
   }
 
@@ -70,6 +75,7 @@ class HabitProgressModel extends HiveObject {
       notes: entity.notes,
       createdAt: entity.createdAt,
       synced: entity.synced,
+      userId: entity.userId, // ✅ Added to entity conversion
     );
   }
 }

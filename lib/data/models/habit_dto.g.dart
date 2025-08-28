@@ -21,6 +21,7 @@ HabitDto _$HabitDtoFromJson(Map<String, dynamic> json) => HabitDto(
       currentStreak: (json['currentStreak'] as num).toInt(),
       longestStreak: (json['longestStreak'] as num).toInt(),
       completionRate: (json['completionRate'] as num).toDouble(),
+      userId: json['userId'] as String,
     );
 
 Map<String, dynamic> _$HabitDtoToJson(HabitDto instance) => <String, dynamic>{
@@ -38,4 +39,5 @@ Map<String, dynamic> _$HabitDtoToJson(HabitDto instance) => <String, dynamic>{
       'currentStreak': instance.currentStreak,
       'longestStreak': instance.longestStreak,
       'completionRate': instance.completionRate,
+      'userId': instance.userId,
     };

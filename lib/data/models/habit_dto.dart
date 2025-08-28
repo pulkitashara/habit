@@ -19,6 +19,7 @@ class HabitDto {
   final int currentStreak;
   final int longestStreak;
   final double completionRate;
+  final String userId; // ✅ Added userId field
 
   HabitDto({
     required this.id,
@@ -35,6 +36,7 @@ class HabitDto {
     required this.currentStreak,
     required this.longestStreak,
     required this.completionRate,
+    required this.userId, // ✅ Added to constructor
   });
 
   factory HabitDto.fromJson(Map<String, dynamic> json) =>
@@ -58,6 +60,7 @@ class HabitDto {
       currentStreak: currentStreak,
       longestStreak: longestStreak,
       completionRate: completionRate,
+      userId: userId, // ✅ Added to entity conversion
     );
   }
 
@@ -77,6 +80,7 @@ class HabitDto {
       currentStreak: habit.currentStreak,
       longestStreak: habit.longestStreak,
       completionRate: habit.completionRate,
+      userId: habit.userId, // ✅ Added from entity conversion
     );
   }
 }

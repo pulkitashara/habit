@@ -159,53 +159,45 @@ class HabitNotifier extends StateNotifier<HabitState> {
 
 
   Future<void> createHabit(Habit habit) async {
+    final currentUserId = HiveService.getCurrentUserId();
+    if (currentUserId == null) {
+      state = state.copyWith(error: 'User not logged in');
+      return;
+    }
+
     try {
-      // Save locally first
-      final habitModel = HabitModel.fromEntity(habit);
+      // ✅ Add userId to habit
+      final habitWithUser = habit.copyWith(userId: currentUserId);
+
+      final habitModel = HabitModel.fromEntity(habitWithUser);
       await HiveService.saveHabit(habitModel);
 
-      // Optimistic update - add to UI immediately
-      final updatedHabits = [habit, ...state.habits];
+      final updatedHabits = [habitWithUser, ...state.habits];
       state = state.copyWith(habits: updatedHabits);
 
-      // Try to sync with API
+      // Background API sync
       final authState = _ref.read(authProvider);
       if (authState.isAuthenticated && authState.token != null) {
         try {
-          final habitData = habit.toJson();
-          final response = await _apiService.createHabit(authState.token!, habitData);
-
-          // Update local habit with server ID if different
-          if (response['id'] != habit.id) {
-            await HiveService.deleteHabit(habit.id);
-            final serverHabit = habit.copyWith(
-              id: response['id'],
-              updatedAt: DateTime.parse(response['updatedAt']),
-            );
-            final serverHabitModel = HabitModel.fromEntity(serverHabit);
-            await HiveService.saveHabit(serverHabitModel);
-
-            // Update state with server habit
-            final index = updatedHabits.indexWhere((h) => h.id == habit.id);
-            if (index != -1) {
-              updatedHabits[index] = serverHabit;
-              state = state.copyWith(habits: List.from(updatedHabits));
-            }
-          }
+          final habitData = habitWithUser.toJson();
+          await _apiService.createHabit(authState.token!, habitData);
         } catch (e) {
           print('Failed to sync new habit to API: $e');
-          // Habit is still saved locally and shown in UI
         }
       }
     } catch (e) {
-      // Rollback optimistic update on error
       await loadHabits();
       state = state.copyWith(error: 'Failed to create habit: ${e.toString()}');
     }
   }
 
-  // In your HabitProvider
   Future<void> markHabitComplete(String habitId) async {
+    final currentUserId = HiveService.getCurrentUserId();
+    if (currentUserId == null) {
+      state = state.copyWith(error: 'User not logged in');
+      return;
+    }
+
     try {
       final habitIndex = state.habits.indexWhere((h) => h.id == habitId);
       if (habitIndex == -1) return;
@@ -213,14 +205,13 @@ class HabitNotifier extends StateNotifier<HabitState> {
       final habit = state.habits[habitIndex];
       final now = DateTime.now();
 
-      // Check if already completed today
       final todayProgress = HiveService.getTodayProgress(habitId);
       if (todayProgress?.isCompleted == true) {
         state = state.copyWith(error: 'Habit already completed today');
         return;
       }
 
-      // Create progress entry
+      // ✅ Create progress with userId
       final progress = HabitProgress(
         id: '${habitId}_${now.millisecondsSinceEpoch}',
         habitId: habitId,
@@ -229,27 +220,24 @@ class HabitNotifier extends StateNotifier<HabitState> {
         target: habit.targetCount,
         isCompleted: true,
         createdAt: now,
+        userId: currentUserId, // ✅ Add user ID
       );
 
-      // ✅ Save progress to Hive IMMEDIATELY
       final progressModel = HabitProgressModel.fromEntity(progress);
       await HiveService.saveProgress(progressModel);
 
-      // ✅ Recalculate stats from Hive data (not memory)
+      // Recalculate stats
       final newStreak = HiveService.calculateCurrentStreak(habitId);
       final newCompletionRate = HiveService.calculateCompletionRate(habitId);
 
-      // Update habit with new stats
       final updatedHabit = habit.copyWith(
         currentStreak: newStreak,
         longestStreak: newStreak > habit.longestStreak ? newStreak : habit.longestStreak,
         completionRate: newCompletionRate,
       );
 
-      // ✅ Save updated habit to Hive IMMEDIATELY
       await HiveService.saveHabit(HabitModel.fromEntity(updatedHabit));
 
-      // Update UI state
       final updatedHabits = List<Habit>.from(state.habits);
       updatedHabits[habitIndex] = updatedHabit;
 
@@ -265,6 +253,8 @@ class HabitNotifier extends StateNotifier<HabitState> {
       state = state.copyWith(error: 'Failed to mark habit complete: ${e.toString()}');
     }
   }
+
+
 
 
 

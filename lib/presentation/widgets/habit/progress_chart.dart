@@ -7,12 +7,14 @@ class ProgressChart extends StatelessWidget {
   final String habitId;
   final List<HabitProgress> progressData;
   final Color color;
+  final String userId;
 
   const ProgressChart({
     super.key,
     required this.habitId,
     required this.progressData,
     required this.color,
+    required this.userId,
   });
 
   @override
@@ -165,7 +167,6 @@ class ProgressChart extends StatelessWidget {
   }
 
   List<FlSpot> _getChartData() {
-    // Generate mock data for last 7 days
     final now = DateTime.now();
     final spots = <FlSpot>[];
 
@@ -183,6 +184,7 @@ class ProgressChart extends StatelessWidget {
           target: 1,
           isCompleted: false,
           createdAt: date,
+          userId: userId, // ✅ Add the missing userId parameter
         ),
       );
 

@@ -31,13 +31,14 @@ class HabitModelAdapter extends TypeAdapter<HabitModel> {
       currentStreak: fields[11] as int,
       longestStreak: fields[12] as int,
       completionRate: fields[13] as double,
+      userId: fields[14] as String,
     );
   }
 
   @override
   void write(BinaryWriter writer, HabitModel obj) {
     writer
-      ..writeByte(14)
+      ..writeByte(15)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -65,7 +66,9 @@ class HabitModelAdapter extends TypeAdapter<HabitModel> {
       ..writeByte(12)
       ..write(obj.longestStreak)
       ..writeByte(13)
-      ..write(obj.completionRate);
+      ..write(obj.completionRate)
+      ..writeByte(14)
+      ..write(obj.userId);
   }
 
   @override
@@ -98,6 +101,7 @@ HabitModel _$HabitModelFromJson(Map<String, dynamic> json) => HabitModel(
       currentStreak: (json['currentStreak'] as num?)?.toInt() ?? 0,
       longestStreak: (json['longestStreak'] as num?)?.toInt() ?? 0,
       completionRate: (json['completionRate'] as num?)?.toDouble() ?? 0.0,
+      userId: json['userId'] as String,
     );
 
 Map<String, dynamic> _$HabitModelToJson(HabitModel instance) =>
@@ -116,4 +120,5 @@ Map<String, dynamic> _$HabitModelToJson(HabitModel instance) =>
       'currentStreak': instance.currentStreak,
       'longestStreak': instance.longestStreak,
       'completionRate': instance.completionRate,
+      'userId': instance.userId,
     };

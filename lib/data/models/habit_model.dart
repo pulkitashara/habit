@@ -50,7 +50,7 @@ class HabitModel extends HiveObject {
   final double completionRate;
 
   @HiveField(14)
-  final String userId;
+  final String userId; // ✅ Added userId field
 
   HabitModel({
     required this.id,
@@ -67,6 +67,7 @@ class HabitModel extends HiveObject {
     this.currentStreak = 0,
     this.longestStreak = 0,
     this.completionRate = 0.0,
+    required this.userId, // ✅ Added to constructor
   });
 
   factory HabitModel.fromJson(Map<String, dynamic> json) =>
@@ -90,6 +91,7 @@ class HabitModel extends HiveObject {
       currentStreak: currentStreak,
       longestStreak: longestStreak,
       completionRate: completionRate,
+      userId: userId, // ✅ Added to entity conversion
     );
   }
 
@@ -109,7 +111,9 @@ class HabitModel extends HiveObject {
       currentStreak: habit.currentStreak,
       longestStreak: habit.longestStreak,
       completionRate: habit.completionRate,
-    );  }
+      userId: habit.userId, // ✅ Added to entity conversion
+    );
+  }
 
   HabitModel copyWith({
     String? id,
@@ -126,6 +130,7 @@ class HabitModel extends HiveObject {
     int? currentStreak,
     int? longestStreak,
     double? completionRate,
+    String? userId, // ✅ Added to copyWith
   }) {
     return HabitModel(
       id: id ?? this.id,
@@ -142,6 +147,7 @@ class HabitModel extends HiveObject {
       currentStreak: currentStreak ?? this.currentStreak,
       longestStreak: longestStreak ?? this.longestStreak,
       completionRate: completionRate ?? this.completionRate,
+      userId: userId ?? this.userId, // ✅ Added to copyWith
     );
   }
 }

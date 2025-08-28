@@ -98,6 +98,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
         updatedAt: DateTime.now(),
       );
 
+      await HiveService.setCurrentUser(user.id);
+
+
       state = state.copyWith(
         isLoading: false,
         user: user,
@@ -111,16 +114,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
       return const Right(null);
     } catch (e) {
+      // Handle error
       final errorMessage = _handleError(e);
-
-      state = state.copyWith(
-        isLoading: false,
-        error: errorMessage,
-      );
-
+      state = state.copyWith(isLoading: false, error: errorMessage);
       _ref.read(apiLoadingProvider.notifier).state = false;
       _ref.read(apiErrorProvider.notifier).state = errorMessage;
-
       return Left(_mapExceptionToFailure(e));
     }
   }
@@ -166,20 +164,18 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> logout() async {
-    final token = state.token;
+    final currentUserId = HiveService.getCurrentUserId();
 
-    if (token != null) {
-      try {
-        await _apiService.logout(token);
-      } catch (e) {
-        print('Logout API call failed: $e');
-      }
+    if (currentUserId != null) {
+      // ✅ Clear data for current user
+      await HiveService.clearDataForUser(currentUserId);
     }
 
-    // Clear local storage
+    // Clear authentication data
     await HiveService.saveSetting('auth_token', null);
     await HiveService.saveSetting('refresh_token', null);
     await HiveService.saveSetting('user_data', null);
+    await HiveService.setCurrentUser('');
 
     state = AuthState();
   }
