@@ -1,4 +1,3 @@
-''''
 # 🎯 Habit Tracker - Flutter Internship Assignment
 
 > **Flutter Internship Assignment Submission**  
@@ -96,7 +95,7 @@ Android Studio / VS Code with Flutter extensions
 
 1. **Clone the repository:**
 ```bash
-git clone https://github.com/your-username/habit-tracker.git
+git clone https://github.com/pulkitashara/habit.git
 cd habit-tracker
 ```
 
@@ -330,4 +329,3 @@ The **Habit Tracker** app successfully fulfills all core assignment requirements
 - 🎨 Modern UI/UX with adaptive theming and smooth animations
 - 🔄 Sophisticated offline-first architecture with intelligent sync
 - 📊 Professional code quality and documentation standards
-''''
