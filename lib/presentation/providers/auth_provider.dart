@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dartz/dartz.dart';
+import '../../data/models/user_model.dart';
 import '../../data/services/api_service.dart';
 import '../../domain/entities/user.dart';
 import '../../core/errors/failures.dart';
@@ -45,44 +46,114 @@ class AuthNotifier extends StateNotifier<AuthState> {
   final Ref _ref;
 
   AuthNotifier(this._apiService, this._ref) : super(AuthState()) {
-    _checkAuthStatus();
+
   }
 
+  Future<void> initializeAuth() async {
+    await _checkAuthStatus();
+  }
+
+  // In auth_provider.dart - Update the _checkAuthStatus method
   Future<void> _checkAuthStatus() async {
-    final token = HiveService.getSetting<String>('auth_token');
-    final userData = HiveService.getSetting<Map>('user_data');
+    try {
+      // ✅ Ensure Hive is initialized first
+      if (!HiveService.isInitialized) {
+        print('❌ Hive not initialized, skipping auth check');
+        state = AuthState();
+        return;
+      }
 
-    if (token != null && userData != null) {
-      final user = User(
-        id: userData['id'] ?? '1',
-        username: userData['username'] ?? 'user',
-        email: userData['email'] ?? 'user@example.com',
-        firstName: userData['firstName'],
-        lastName: userData['lastName'],
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
+      final token = HiveService.getSetting('auth_token');
+      final userData = HiveService.getSetting('user_data');
+      final currentUserId = HiveService.getCurrentUserId();
 
-      state = state.copyWith(
-        isAuthenticated: true,
-        user: user,
-        token: token,
-      );
+      print('🔍 Checking auth status:');
+      print('  Token exists: ${token != null}');
+      print('  User data exists: ${userData != null}');
+      print('  Current User ID: $currentUserId');
+
+      // ✅ CRITICAL FIX: Check if user was properly logged out
+      if (currentUserId == null || currentUserId.isEmpty) {
+        print('❌ No current user - user was logged out');
+        state = AuthState(); // Reset to logged out state
+        return;
+      }
+
+      if (token != null && userData != null) {
+        // ✅ Try to restore user from Hive first
+        final savedUser = HiveService.getUser(currentUserId);
+
+        User user;
+        if (savedUser != null) {
+          // Use saved user data
+          user = savedUser.toEntity();
+          print('✅ Restored user from Hive: ${user.username}');
+        } else {
+          // Fallback to session data
+          user = User(
+            id: userData['id'] ?? currentUserId,
+            username: userData['username'] ?? 'user',
+            email: userData['email'] ?? 'user@example.com',
+            firstName: userData['firstName'],
+            lastName: userData['lastName'],
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+          );
+          print('✅ Created user from session data: ${user.username}');
+        }
+
+        state = state.copyWith(
+          isAuthenticated: true,
+          user: user,
+          token: token,
+        );
+
+        print('✅ Authentication restored successfully');
+      } else {
+        print('❌ No valid session found');
+        state = AuthState(); // Ensure clean slate
+      }
+    } catch (e) {
+      print('❌ Error checking auth status: $e');
+      state = AuthState(); // Reset on error
     }
   }
 
   Future<Either<Failure, void>> login(String username, String password) async {
+    state = state.copyWith(isLoading: true, error: null);
+    _ref.read(apiLoadingProvider.notifier).state = true;
+
     try {
       final response = await _apiService.login(username, password);
       final token = response['token'];
       final userData = response['user'];
-
       final userId = userData['id'].toString();
 
-      // Save auth data
+      print('🔄 Starting login process for user: $userId');
+
+      // ✅ CRITICAL: Save auth data in specific order and await each step
       await HiveService.saveSetting('auth_token', token);
+      print('✅ Token saved');
+
       await HiveService.saveSetting('user_data', userData);
+      print('✅ User data saved');
+
+      // ✅ MOST IMPORTANT: Save current user ID and verify
       await HiveService.setCurrentUser(userId);
+
+      // ✅ Wait a tiny bit for Hive to flush
+      await Future.delayed(Duration(milliseconds: 100));
+
+      // ✅ Verify it was actually saved
+      final verifyUserId = HiveService.getCurrentUserId();
+      print('🔍 Verification - User ID saved as: "$verifyUserId"');
+
+      if (verifyUserId != userId) {
+        print('❌ CRITICAL ERROR: User ID not saved properly!');
+        print('  Expected: $userId');
+        print('  Got: $verifyUserId');
+        throw Exception('Failed to save user session');
+      }
 
       final user = User(
         id: userId,
@@ -94,6 +165,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
         updatedAt: DateTime.now(),
       );
 
+      // Save user model for offline access
+      final userModel = UserModel.fromEntity(user);
+      await HiveService.saveUser(userModel);
+      print('✅ User model saved');
+
+      // ✅ Update state ONLY after everything is saved
       state = state.copyWith(
         isLoading: false,
         user: user,
@@ -101,12 +178,15 @@ class AuthNotifier extends StateNotifier<AuthState> {
         token: token,
         error: null,
       );
-      _ref.read(habitProvider.notifier).loadHabits();
 
+      print('✅ Login completed successfully');
+
+      // Load habits after successful login
+      _ref.read(habitProvider.notifier).loadHabits();
 
       return const Right(null);
     } catch (e) {
-      // Handle error
+      print('❌ Login failed: $e');
       final errorMessage = _handleError(e);
       state = state.copyWith(isLoading: false, error: errorMessage);
       _ref.read(apiLoadingProvider.notifier).state = false;
@@ -114,6 +194,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
       return Left(_mapExceptionToFailure(e));
     }
   }
+
+
 
   Future<Either<Failure, void>> signup({
     required String username,
@@ -155,22 +237,34 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
+  // In auth_provider.dart - Fix the logout method
   Future<void> logout() async {
-    final currentUserId = HiveService.getCurrentUserId();
+    final currentUser = state.user;
 
-    if (currentUserId != null) {
-      // ✅ Clear data for current user
-      await HiveService.clearDataForUser(currentUserId);
+    if (currentUser != null) {
+      // Save user data for potential future login
+      final userModel = UserModel.fromEntity(currentUser);
+      await HiveService.saveUser(userModel);
+      print('💾 Preserved user data for: ${currentUser.username}');
     }
 
-    // Clear authentication data
+    // ✅ CRITICAL: Clear authentication state FIRST
     await HiveService.saveSetting('auth_token', null);
     await HiveService.saveSetting('refresh_token', null);
     await HiveService.saveSetting('user_data', null);
-    await HiveService.setCurrentUser('');
 
+    // ✅ THEN logout user (this will clear current_user_id)
+    await HiveService.logoutCurrentUser();
+
+    // ✅ Reset provider state to logged out
     state = AuthState();
+
+    // ✅ IMPORTANT: Clear habit provider state too
+    _ref.read(habitProvider.notifier).clearUserData();
+
+    print('👋 User logged out completely');
   }
+
 
   String _handleError(dynamic error) {
     if (error is AuthException) {

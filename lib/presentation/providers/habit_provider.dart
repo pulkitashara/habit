@@ -114,6 +114,14 @@ class HabitNotifier extends StateNotifier<HabitState> {
   }
 
 
+  void clearUserData() {
+    // Clear habit state when user logs out
+    state = HabitState();
+    print('🧹 Cleared habit provider state');
+  }
+
+
+
 // ✅ Background sync that doesn't overwrite local progress
   Future<void> _syncWithApiInBackground(String token) async {
     try {

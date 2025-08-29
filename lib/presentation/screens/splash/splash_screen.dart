@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../data/datasources/local/hive_service.dart';
 import '../../routes/route_names.dart';
 import '../../providers/auth_provider.dart';
 
@@ -45,23 +46,41 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     _startAnimationAndNavigation();
   }
 
+  // In splash_screen.dart - Update navigation logic
   Future<void> _startAnimationAndNavigation() async {
     // Start animation
     _animationController.forward();
 
-    // Wait for animation + loading time
-    await Future.delayed(const Duration(milliseconds: 2500));
+    // ✅ Wait for Hive to be ready and auth to initialize
+    await Future.delayed(const Duration(milliseconds: 1000));
+
+    // ✅ Force auth initialization if not done
+    await ref.read(authProvider.notifier).initializeAuth();
+
+    // Wait for animation to complete
+    await Future.delayed(const Duration(milliseconds: 1500));
 
     if (mounted) {
-      // Check if user is authenticated
+      // ✅ Check authentication state
       final authState = ref.read(authProvider);
-      if (authState.isAuthenticated) {
+      final currentUserId = HiveService.getCurrentUserId();
+      final isReallyAuthenticated = authState.isAuthenticated &&
+          currentUserId != null &&
+          currentUserId.isNotEmpty;
+
+      print('🚀 Splash navigation:');
+      print('  Auth state: ${authState.isAuthenticated}');
+      print('  Current user ID: $currentUserId');
+      print('  Really authenticated: $isReallyAuthenticated');
+
+      if (isReallyAuthenticated) {
         context.go(RouteNames.dashboard);
       } else {
         context.go(RouteNames.login);
       }
     }
   }
+
 
   @override
   void dispose() {

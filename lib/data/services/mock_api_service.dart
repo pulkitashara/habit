@@ -3,31 +3,79 @@ import 'dart:convert';
 import 'dart:math';
 import 'api_service.dart';
 import '../../core/exceptions/api_exception.dart';
+import '../datasources/local/hive_service.dart';
 
 class MockApiService implements ApiService {
   final Random _random = Random();
 
-  // Mock user database
-  final Map<String, Map<String, dynamic>> _users = {
-    'test@example.com': {
-      'password': 'password123',
-      'id': '1',
-      'firstName': 'Demo',
-      'lastName': 'User',
-    },
-    'demo@habit.com': {
-      'password': 'demo123',
-      'id': '2',
-      'firstName': 'Demo',
-      'lastName': 'Tester',
-    },
-  };
+  // ✅ Remove hardcoded users - load from Hive instead
+  Map<String, Map<String, String>> _users = {};
 
   // Mock habits database
-  final Map<String, List<Map<String, dynamic>>> _userHabits = {};
+  Map<String, List<Map<String, dynamic>>> _userHabits = {};
 
   // Mock progress database
   final Map<String, List<Map<String, dynamic>>> _habitProgress = {};
+
+  // ✅ Constructor to load users from Hive
+  MockApiService() {
+    _loadUsersFromHive();
+  }
+
+  // ✅ Load existing users from Hive or initialize with demo users
+  void _loadUsersFromHive() {
+    try {
+      final savedUsers = HiveService.getSetting<Map>('mock_users');
+
+      if (savedUsers != null && savedUsers.isNotEmpty) {
+        _users = Map<String, Map<String, String>>.from(
+            savedUsers.map((key, value) => MapEntry(
+                key.toString(),
+                Map<String, String>.from(value as Map)
+            ))
+        );
+        print('📋 Loaded ${_users.length} users from Hive');
+      } else {
+        // Initialize with demo users if no saved users
+        _users = {
+          'test@example.com': {
+            'password': 'password123',
+            'id': '1',
+            'firstName': 'Demo',
+            'lastName': 'User',
+          },
+          'demo@habit.com': {
+            'password': 'demo123',
+            'id': '2',
+            'firstName': 'Demo',
+            'lastName': 'Tester',
+          },
+        };
+        _saveUsersToHive();
+      }
+    } catch (e) {
+      print('❌ Error loading users from Hive: $e');
+      // Fallback to demo users
+      _users = {
+        'test@example.com': {
+          'password': 'password123',
+          'id': '1',
+          'firstName': 'Demo',
+          'lastName': 'User',
+        },
+      };
+    }
+  }
+
+  // ✅ Save users to Hive
+  Future<void> _saveUsersToHive() async {
+    try {
+      await HiveService.saveSetting('mock_users', _users);
+      print('💾 Saved ${_users.length} users to Hive');
+    } catch (e) {
+      print('❌ Error saving users to Hive: $e');
+    }
+  }
 
   @override
   Future<Map<String, dynamic>> login(String username, String password) async {
@@ -56,7 +104,7 @@ class MockApiService implements ApiService {
 
     return {
       'token': token,
-      'refreshToken': 'refresh_${token}',
+      'refreshToken': 'refresh_$token',
       'user': {
         'id': user['id'],
         'username': username,
@@ -91,7 +139,7 @@ class MockApiService implements ApiService {
       throw ValidationException('User already exists with this email');
     }
 
-    // Create new user
+    // ✅ Create new user and persist to Hive
     final userId = DateTime.now().millisecondsSinceEpoch.toString();
     _users[username] = {
       'password': password,
@@ -100,12 +148,28 @@ class MockApiService implements ApiService {
       'lastName': userData['lastName'] ?? 'User',
     };
 
-    print('✅ Mock API: User created successfully');
+    // ✅ Save to Hive immediately
+    await _saveUsersToHive();
+
+    print('✅ Mock API: User created successfully with ID: $userId');
+    print('✅ Total users: ${_users.length}');
 
     return {
       'message': 'User created successfully',
       'userId': userId,
     };
+  }
+
+  // ✅ Add debug method
+  void debugUsers() {
+    print('=== MOCK API USERS ===');
+    for (final entry in _users.entries) {
+      print('Email: ${entry.key}');
+      print('  ID: ${entry.value['id']}');
+      print('  Name: ${entry.value['firstName']} ${entry.value['lastName']}');
+    }
+    print('Total users: ${_users.length}');
+    print('======================');
   }
 
   @override
@@ -328,11 +392,19 @@ class MockApiService implements ApiService {
   String _extractUserIdFromToken(String? token) {
     // ✅ FIX: Handle null token properly
     if (token == null || token.isEmpty) {
-      return 'guest_user'; // Default user ID
+      return '1'; // Default user ID
     }
 
-    // Extract user ID from token (your existing logic)
+    // Extract user ID from mock token
     try {
+      if (token.startsWith('mock_jwt_')) {
+        final parts = token.split('_');
+        if (parts.length >= 3) {
+          return parts[2]; // Extract user ID from token
+        }
+      }
+
+      // Fallback for other token formats
       final parts = token.split('.');
       if (parts.length >= 2) {
         final payload = utf8.decode(base64Decode(parts[1]));
@@ -345,57 +417,4 @@ class MockApiService implements ApiService {
 
     return 'guest_user'; // Fallback
   }
-
-  // List<Map<String, dynamic>> _generateSampleHabits() {
-  //   return [
-  //     {
-  //       'id': 'habit_sample_1',
-  //       'name': 'Morning Exercise',
-  //       'description': '30 minutes of exercise every morning',
-  //       'category': 'fitness',
-  //       'targetCount': 1,
-  //       'frequency': 'daily',
-  //       'createdAt': DateTime.now().subtract(const Duration(days: 7)).toIso8601String(),
-  //       'updatedAt': DateTime.now().toIso8601String(),
-  //       'isActive': true,
-  //       'color': '#FF6B6B',
-  //       'icon': 'fitness_center',
-  //       'currentStreak': 3,
-  //       'longestStreak': 5,
-  //       'completionRate': 0.7,
-  //     },
-  //     {
-  //       'id': 'habit_sample_2',
-  //       'name': 'Drink Water',
-  //       'description': 'Drink 8 glasses of water daily',
-  //       'category': 'nutrition',
-  //       'targetCount': 8,
-  //       'frequency': 'daily',
-  //       'createdAt': DateTime.now().subtract(const Duration(days: 5)).toIso8601String(),
-  //       'updatedAt': DateTime.now().toIso8601String(),
-  //       'isActive': true,
-  //       'color': '#4ECDC4',
-  //       'icon': 'local_drink',
-  //       'currentStreak': 2,
-  //       'longestStreak': 4,
-  //       'completionRate': 0.6,
-  //     },
-  //     {
-  //       'id': 'habit_sample_3',
-  //       'name': 'Read Books',
-  //       'description': 'Read for 30 minutes daily',
-  //       'category': 'productivity',
-  //       'targetCount': 1,
-  //       'frequency': 'daily',
-  //       'createdAt': DateTime.now().subtract(const Duration(days: 3)).toIso8601String(),
-  //       'updatedAt': DateTime.now().toIso8601String(),
-  //       'isActive': true,
-  //       'color': '#96CEB4',
-  //       'icon': 'menu_book',
-  //       'currentStreak': 1,
-  //       'longestStreak': 2,
-  //       'completionRate': 0.5,
-  //     },
-  //   ];
-  // }
 }

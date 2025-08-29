@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../data/datasources/local/hive_service.dart';
 import '../screens/splash/splash_screen.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/auth/signup_screen.dart';
@@ -19,29 +20,43 @@ final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: RouteNames.splash,
-
-    // ✅ Add redirect logic based on authentication
     redirect: (context, state) {
       final isAuthenticated = authState.isAuthenticated;
       final isAuthRoute = state.fullPath == RouteNames.login ||
           state.fullPath == RouteNames.signup;
       final isSplashRoute = state.fullPath == RouteNames.splash;
 
-      // Allow splash screen
+      print('🛣️ Router redirect check:');
+      print('  Current path: ${state.fullPath}');
+      print('  Is authenticated: $isAuthenticated');
+
+      // Always allow splash screen
       if (isSplashRoute) return null;
 
+      // ✅ Double check with HiveService
+      final currentUserId = HiveService.getCurrentUserId();
+      final isReallyAuthenticated = isAuthenticated &&
+          currentUserId != null &&
+          currentUserId.isNotEmpty;
+
+      print('  Current user ID: $currentUserId');
+      print('  Really authenticated: $isReallyAuthenticated');
+
       // If not authenticated, redirect to login (except for auth routes)
-      if (!isAuthenticated && !isAuthRoute) {
+      if (!isReallyAuthenticated && !isAuthRoute) {
+        print('🔄 Redirecting to login - not authenticated');
         return RouteNames.login;
       }
 
       // If authenticated and on auth route, redirect to dashboard
-      if (isAuthenticated && isAuthRoute) {
+      if (isReallyAuthenticated && isAuthRoute) {
+        print('🔄 Redirecting to dashboard - already authenticated');
         return RouteNames.dashboard;
       }
 
       return null;
     },
+
 
     routes: [
       GoRoute(

@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../data/datasources/local/hive_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/api_providers.dart';
 import '../../widgets/common/custom_button.dart';
@@ -73,6 +74,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               duration: Duration(seconds: 2),
             ),
           );
+          HiveService.debugAuthState();
           // Router will automatically navigate based on auth state change
         },
       );

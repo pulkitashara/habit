@@ -31,6 +31,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with WidgetsB
     });
   }
 
+
   @override
   void dispose() {
     // Remove observer to prevent memory leaks
@@ -63,10 +64,20 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with WidgetsB
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.of(context).pop();
-              ref.read(authProvider.notifier).logout();
-              context.go(RouteNames.login);
+
+              // ✅ ADD THIS - Proper logout with provider invalidation
+              await ref.read(authProvider.notifier).logout();
+
+              // ✅ Force provider refresh
+              ref.invalidate(authProvider);
+              ref.invalidate(habitProvider);
+
+              // Navigate to login
+              if (mounted) {
+                context.go(RouteNames.login);
+              }
             },
             child: const Text('Logout'),
           ),
@@ -74,6 +85,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with WidgetsB
       ),
     );
   }
+
 
   void _dismissError() {
     ref.read(habitProvider.notifier).clearError();
