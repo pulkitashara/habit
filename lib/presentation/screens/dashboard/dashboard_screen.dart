@@ -19,31 +19,25 @@ class DashboardScreen extends ConsumerStatefulWidget {
   ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-// Update your DashboardScreen class
 class _DashboardScreenState extends ConsumerState<DashboardScreen> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
-    // Add lifecycle observer
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(habitProvider.notifier).loadHabits();
     });
   }
 
-
   @override
   void dispose() {
-    // Remove observer to prevent memory leaks
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
-  // ✅ This detects when app comes back to foreground
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      // Reload data when app resumes (handles date changes)
       ref.read(habitProvider.notifier).loadHabits();
     }
   }
@@ -66,15 +60,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with WidgetsB
           TextButton(
             onPressed: () async {
               Navigator.of(context).pop();
-
-              // ✅ ADD THIS - Proper logout with provider invalidation
               await ref.read(authProvider.notifier).logout();
-
-              // ✅ Force provider refresh
               ref.invalidate(authProvider);
               ref.invalidate(habitProvider);
-
-              // Navigate to login
               if (mounted) {
                 context.go(RouteNames.login);
               }
@@ -85,7 +73,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with WidgetsB
       ),
     );
   }
-
 
   void _dismissError() {
     ref.read(habitProvider.notifier).clearError();
@@ -157,10 +144,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with WidgetsB
     final apiError = ref.watch(apiErrorProvider);
 
     return Scaffold(
+      // ✅ Allow body to extend behind AppBar
+      extendBodyBehindAppBar: true,
+
       appBar: AppBar(
         title: const Text('Habit Builder'),
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        foregroundColor: Theme.of(context).colorScheme.onPrimary,
         actions: [
           IconButton(
             onPressed: _showDebugDialog,
@@ -187,12 +175,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with WidgetsB
           if (habitState.isSyncing)
             Container(
               padding: const EdgeInsets.all(8),
-              child: const SizedBox(
+              child: SizedBox(
                 width: 16,
                 height: 16,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    Theme.of(context).appBarTheme.foregroundColor ?? Colors.white,
+                  ),
                 ),
               ),
             ),
@@ -233,153 +223,182 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with WidgetsB
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: _refreshHabits,
-        child: CustomScrollView(
-          slivers: [
-            if (apiError != null)
-              SliverToBoxAdapter(
-                child: Container(
-                  margin: const EdgeInsets.all(16),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.red.withValues(alpha: 0.1),
-                    border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.error_outline, color: Colors.red),
-                      const SizedBox(width: 8),
-                      Expanded(child: Text(apiError, style: const TextStyle(color: Colors.red))),
-                      IconButton(
-                        icon: const Icon(Icons.close, size: 16),
-                        onPressed: () => ref.read(apiErrorProvider.notifier).state = null,
+
+      body: Container(
+        // ✅ Add gradient background that works with transparent AppBar
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: Theme.of(context).brightness == Brightness.dark
+                ? [
+              const Color(0xFF1E1E2E),
+              const Color(0xFF121212),
+            ]
+                : [
+              Colors.blue.shade50,
+              Colors.white,
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: RefreshIndicator(
+            onRefresh: _refreshHabits,
+            child: CustomScrollView(
+              slivers: [
+                if (apiError != null)
+                  SliverToBoxAdapter(
+                    child: Container(
+                      margin: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withValues(alpha: 0.1),
+                        border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                    ],
-                  ),
-                ),
-              ),
-            if (habitState.error != null)
-              SliverToBoxAdapter(
-                child: Container(
-                  margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.withValues(alpha: 0.1),
-                    border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.warning_outlined, color: Colors.orange),
-                      const SizedBox(width: 8),
-                      Expanded(child: Text(habitState.error!, style: const TextStyle(color: Colors.orange))),
-                      IconButton(
-                        icon: const Icon(Icons.close, size: 16),
-                        onPressed: _dismissError,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            SliverToBoxAdapter(
-              child: DashboardHeader(
-                user: authState.user,
-                totalHabits: habitState.habits.length,
-                completedToday: _calculateCompletedToday(habitState.habits),
-                currentStreak: _calculateMaxStreak(habitState.habits),
-              ),
-            ),
-            if (habitState.isLoading)
-              const SliverFillRemaining(
-                child: Center(child: LoadingWidget()),
-              )
-            else if (habitState.habits.isEmpty)
-              SliverFillRemaining(
-                child: _buildEmptyState(),
-              )
-            else
-              SliverPadding(
-                padding: const EdgeInsets.all(16),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                        (context, index) {
-                      final habit = habitState.habits[index];
-                      return Dismissible(
-                        key: ValueKey(habit.id),
-                        direction: DismissDirection.endToStart,
-                        confirmDismiss: (direction) async {
-                          return await showDialog<bool>(
-                            context: context,
-                            builder: (ctx) => AlertDialog(
-                              title: const Text('Delete Habit?'),
-                              content: const Text('Are you sure you want to delete this habit and all its progress?'),
-                              actions: [
-                                TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
-                                TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Delete')),
-                              ],
-                            ),
-                          );
-                        },
-                        background: ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
-                          child: Container(
-                            color: Colors.red.withOpacity(0.12),
-                            alignment: Alignment.centerRight,
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            child: const Icon(Icons.delete, color: Colors.red),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.error_outline, color: Colors.red),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text(apiError, style: const TextStyle(color: Colors.red))),
+                          IconButton(
+                            icon: const Icon(Icons.close, size: 16),
+                            onPressed: () => ref.read(apiErrorProvider.notifier).state = null,
                           ),
-                        ),
-                        onDismissed: (direction) {
-                          final deletedHabit = habit;
-                          ref.read(habitProvider.notifier).removeHabitFromState(deletedHabit.id);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('${deletedHabit.name} deleted'),
-                              action: SnackBarAction(
-                                label: 'Undo',
-                                onPressed: () async {
-                                  await ref.read(habitProvider.notifier).addHabit(deletedHabit);
+                        ],
+                      ),
+                    ),
+                  ),
+                if (habitState.error != null)
+                  SliverToBoxAdapter(
+                    child: Container(
+                      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withValues(alpha: 0.1),
+                        border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.warning_outlined, color: Colors.orange),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text(habitState.error!, style: const TextStyle(color: Colors.orange))),
+                          IconButton(
+                            icon: const Icon(Icons.close, size: 16),
+                            onPressed: _dismissError,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                SliverToBoxAdapter(
+                  child: DashboardHeader(
+                    user: authState.user,
+                    totalHabits: habitState.habits.length,
+                    completedToday: _calculateCompletedToday(habitState.habits),
+                    currentStreak: _calculateMaxStreak(habitState.habits),
+                  ),
+                ),
+                if (habitState.isLoading)
+                  const SliverFillRemaining(
+                    child: Center(child: LoadingWidget()),
+                  )
+                else if (habitState.habits.isEmpty)
+                  SliverFillRemaining(
+                    child: _buildEmptyState(),
+                  )
+                else
+                  SliverPadding(
+                    padding: const EdgeInsets.all(16),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                            (context, index) {
+                          final habit = habitState.habits[index];
+                          return Dismissible(
+                            key: ValueKey(habit.id),
+                            direction: DismissDirection.endToStart,
+                            confirmDismiss: (direction) async {
+                              return await showDialog<bool>(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  title: const Text('Delete Habit?'),
+                                  content: const Text('Are you sure you want to delete this habit and all its progress?'),
+                                  actions: [
+                                    TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+                                    TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Delete')),
+                                  ],
+                                ),
+                              );
+                            },
+                            background: ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: Container(
+                                color: Colors.red.withOpacity(0.12),
+                                alignment: Alignment.centerRight,
+                                padding: const EdgeInsets.symmetric(horizontal: 20),
+                                child: const Icon(Icons.delete, color: Colors.red),
+                              ),
+                            ),
+                            onDismissed: (direction) {
+                              final deletedHabit = habit;
+                              ref.read(habitProvider.notifier).removeHabitFromState(deletedHabit.id);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('${deletedHabit.name} deleted'),
+                                  action: SnackBarAction(
+                                    label: 'Undo',
+                                    onPressed: () async {
+                                      await ref.read(habitProvider.notifier).addHabit(deletedHabit);
+                                    },
+                                  ),
+                                  duration: const Duration(seconds: 5),
+                                ),
+                              );
+                              Future.delayed(const Duration(seconds: 5), () async {
+                                final exists = ref.read(habitProvider).habits.any((h) => h.id == deletedHabit.id);
+                                if (!exists) {
+                                  await ref.read(habitProvider.notifier).deleteHabit(deletedHabit.id);
+                                }
+                              });
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: HabitCard(
+                                habit: habit,
+                                onTap: () {
+                                  ref.read(habitProvider.notifier).loadHabitProgress(habit.id);
+                                  context.push('${RouteNames.habitDetail}/${habit.id}');
+                                },
+                                onToggleComplete: () async {
+                                  await ref.read(habitProvider.notifier).markHabitComplete(habit.id);
                                 },
                               ),
-                              duration: const Duration(seconds: 5),
                             ),
                           );
-                          Future.delayed(const Duration(seconds: 5), () async {
-                            final exists = ref.read(habitProvider).habits.any((h) => h.id == deletedHabit.id);
-                            if (!exists) {
-                              await ref.read(habitProvider.notifier).deleteHabit(deletedHabit.id);
-                            }
-                          });
                         },
-                        child: Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: HabitCard(
-                            habit: habit,
-                            onTap: () {
-                              ref.read(habitProvider.notifier).loadHabitProgress(habit.id);
-                              context.push('${RouteNames.habitDetail}/${habit.id}');
-                            },
-                            onToggleComplete: () async {
-                              await ref.read(habitProvider.notifier).markHabitComplete(habit.id);
-                            },
-                          ),
-                        ),
-                      );
-                    },
-                    childCount: habitState.habits.length,
+                        childCount: habitState.habits.length,
+                      ),
+                    ),
                   ),
-                ),
-              ),
-          ],
+              ],
+            ),
+          ),
         ),
       ),
+
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push(RouteNames.addHabit),
+        onPressed: () => context.push('/add-habit'),
+        backgroundColor: Theme.of(context).primaryColor,
+        foregroundColor: Theme.of(context).brightness == Brightness.dark
+            ? Colors.black87
+            : Colors.white,
+        elevation: 4,
         icon: const Icon(Icons.add),
-        label: const Text('New Habit'),
-        tooltip: 'Create a new habit',
+        label: const Text(
+          'New Habit',
+          style: TextStyle(fontWeight: FontWeight.w600),
+        ),
       ),
     );
   }

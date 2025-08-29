@@ -124,12 +124,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                     // Demo Credentials Info (Compact)
                     Container(
-                      padding: const EdgeInsets.all(8),
+                      padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
+                        color: Theme.of(context).primaryColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: Theme.of(context).primaryColor.withValues(alpha: 0.3),
+                          color: Theme.of(context).primaryColor.withOpacity(0.3),
                         ),
                       ),
                       child: Row(
@@ -137,20 +137,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           Icon(
                             Icons.info_outline,
                             color: Theme.of(context).primaryColor,
-                            size: 14,
+                            size: 16,
                           ),
-                          const SizedBox(width: 6),
+                          const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               'Demo: test@example.com / password123',
                               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                 fontFamily: 'monospace',
+                                color: Theme.of(context).textTheme.bodyMedium?.color,
                               ),
                             ),
                           ),
                         ],
                       ),
                     ),
+
                     const SizedBox(height: 20),
 
                     // Username Field

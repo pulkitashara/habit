@@ -40,7 +40,6 @@ class _MyAppState extends ConsumerState<MyApp> {
       ref.read(authProvider.notifier).initializeAuth();
     });
   }
-
   @override
   Widget build(BuildContext context) {
     final isDarkMode = ref.watch(themeProvider);

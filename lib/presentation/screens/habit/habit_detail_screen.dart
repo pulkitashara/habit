@@ -1,4 +1,3 @@
-// lib/presentation/screens/habit/habit_detail_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,6 +9,9 @@ import '../../widgets/common/loading_widget.dart';
 import '../../widgets/common/custom_button.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/utils/date_utils.dart';
+import '../../../core/utils/color_utils.dart';
+import '../../../domain/entities/habit.dart';
+import '../../../data/datasources/local/hive_service.dart';
 
 class HabitDetailScreen extends ConsumerStatefulWidget {
   final String habitId;
@@ -32,7 +34,6 @@ class _HabitDetailScreenState extends ConsumerState<HabitDetailScreen>
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
 
-    // Load habit details and progress
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(habitProvider.notifier).loadHabitProgress(widget.habitId);
     });
@@ -44,23 +45,6 @@ class _HabitDetailScreenState extends ConsumerState<HabitDetailScreen>
     super.dispose();
   }
 
-  Color _getCategoryColor(String category) {
-    switch (category.toLowerCase()) {
-      case 'fitness':
-        return AppColors.fitness;
-      case 'nutrition':
-        return AppColors.nutrition;
-      case 'mindfulness':
-        return AppColors.mindfulness;
-      case 'productivity':
-        return AppColors.productivity;
-      case 'social':
-        return AppColors.social;
-      default:
-        return AppColors.primary;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final habitState = ref.watch(habitProvider);
@@ -69,10 +53,14 @@ class _HabitDetailScreenState extends ConsumerState<HabitDetailScreen>
       orElse: () => throw Exception('Habit not found'),
     );
 
+    final habitColor = ColorUtils.getHabitColor(habit.color, habit.category);
+
     return Scaffold(
+      // ✅ Allow body to extend behind AppBar
+      extendBodyBehindAppBar: true,
+
       appBar: AppBar(
         title: Text(habit.name),
-        backgroundColor: _getCategoryColor(habit.category).withValues(alpha: 0.1),
         actions: [
           PopupMenuButton<String>(
             onSelected: (value) {
@@ -100,14 +88,31 @@ class _HabitDetailScreenState extends ConsumerState<HabitDetailScreen>
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildOverviewTab(habit),
-          _buildProgressTab(habit, habitState),
-          _buildHistoryTab(habit, habitState),
-        ],
+
+      body: Container(
+        // ✅ Custom gradient background with habit color
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              habitColor.withOpacity(0.1),
+              Theme.of(context).scaffoldBackgroundColor,
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: TabBarView(
+            controller: _tabController,
+            children: [
+              _buildOverviewTab(habit),
+              _buildProgressTab(habit, habitState),
+              _buildHistoryTab(habit, habitState),
+            ],
+          ),
+        ),
       ),
+
       bottomNavigationBar: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -123,7 +128,7 @@ class _HabitDetailScreenState extends ConsumerState<HabitDetailScreen>
           child: CustomButton(
             text: _getTodayButtonText(habit),
             onPressed: () => _markHabitComplete(habit),
-            backgroundColor: _getCategoryColor(habit.category),
+            backgroundColor: habitColor,
             isEnabled: !_isCompletedToday(habit),
           ),
         ),
@@ -131,7 +136,9 @@ class _HabitDetailScreenState extends ConsumerState<HabitDetailScreen>
     );
   }
 
-  Widget _buildOverviewTab(habit) {
+  Widget _buildOverviewTab(Habit habit) {
+    final habitColor = ColorUtils.getHabitColor(habit.color, habit.category);
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -150,12 +157,12 @@ class _HabitDetailScreenState extends ConsumerState<HabitDetailScreen>
                         width: 48,
                         height: 48,
                         decoration: BoxDecoration(
-                          color: _getCategoryColor(habit.category).withValues(alpha: 0.2),
+                          color: habitColor.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Icon(
                           _getCategoryIcon(habit.category),
-                          color: _getCategoryColor(habit.category),
+                          color: habitColor,
                           size: 24,
                         ),
                       ),
@@ -173,7 +180,7 @@ class _HabitDetailScreenState extends ConsumerState<HabitDetailScreen>
                             Text(
                               habit.category.toUpperCase(),
                               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: _getCategoryColor(habit.category),
+                                color: habitColor,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -257,14 +264,16 @@ class _HabitDetailScreenState extends ConsumerState<HabitDetailScreen>
           StreakWidget(
             currentStreak: habit.currentStreak,
             longestStreak: habit.longestStreak,
-            color: _getCategoryColor(habit.category),
+            color: habitColor,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildProgressTab(habit, habitState) {
+  Widget _buildProgressTab(Habit habit, habitState) {
+    final habitColor = ColorUtils.getHabitColor(habit.color, habit.category);
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -289,7 +298,7 @@ class _HabitDetailScreenState extends ConsumerState<HabitDetailScreen>
                   habitId: habit.id,
                   userId: habit.userId,
                   progressData: habitState.habitProgress[habit.id] ?? [],
-                  color: _getCategoryColor(habit.category),
+                  color: habitColor,
                 ),
               ),
             ),
@@ -297,7 +306,6 @@ class _HabitDetailScreenState extends ConsumerState<HabitDetailScreen>
 
           const SizedBox(height: 24),
 
-          // Weekly Summary
           Text(
             'This Week',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -312,7 +320,7 @@ class _HabitDetailScreenState extends ConsumerState<HabitDetailScreen>
     );
   }
 
-  Widget _buildHistoryTab(habit, habitState) {
+  Widget _buildHistoryTab(Habit habit, habitState) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -341,7 +349,6 @@ class _HabitDetailScreenState extends ConsumerState<HabitDetailScreen>
 
           const SizedBox(height: 24),
 
-          // Recent Activity
           Text(
             'Recent Activity',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -415,8 +422,7 @@ class _HabitDetailScreenState extends ConsumerState<HabitDetailScreen>
     );
   }
 
-  Widget _buildWeeklySummary(habit, habitState) {
-    // TODO: Implement weekly summary
+  Widget _buildWeeklySummary(Habit habit, habitState) {
     return const Card(
       child: Padding(
         padding: EdgeInsets.all(16),
@@ -425,7 +431,7 @@ class _HabitDetailScreenState extends ConsumerState<HabitDetailScreen>
     );
   }
 
-  Widget _buildRecentActivity(habit, habitState) {
+  Widget _buildRecentActivity(Habit habit, habitState) {
     final recentProgress = (habitState.habitProgress[habit.id] ?? [])
         .take(7)
         .toList();
@@ -440,13 +446,13 @@ class _HabitDetailScreenState extends ConsumerState<HabitDetailScreen>
     }
 
     return Column(
-      children: recentProgress.map<Widget>((progress) {  // ✅ Added <Widget> type
+      children: recentProgress.map<Widget>((progress) {
         return Card(
           margin: const EdgeInsets.only(bottom: 8),
           child: ListTile(
             leading: CircleAvatar(
               backgroundColor: progress.isCompleted
-                  ? AppColors.success.withValues(alpha: 0.2)  // Fixed withOpacity
+                  ? AppColors.success.withValues(alpha: 0.2)
                   : AppColors.error.withValues(alpha: 0.2),
               child: Icon(
                 progress.isCompleted ? Icons.check : Icons.close,
@@ -464,10 +470,9 @@ class _HabitDetailScreenState extends ConsumerState<HabitDetailScreen>
                 : null,
           ),
         );
-      }).toList(),  // ✅ This now returns List<Widget> properly
+      }).toList(),
     );
   }
-
 
   IconData _getCategoryIcon(String category) {
     switch (category.toLowerCase()) {
@@ -479,26 +484,26 @@ class _HabitDetailScreenState extends ConsumerState<HabitDetailScreen>
         return Icons.self_improvement;
       case 'productivity':
         return Icons.work;
-      case 'social':
-        return Icons.people;
+      case 'health':
+        return Icons.health_and_safety;
       default:
         return Icons.psychology;
     }
   }
 
-  String _getTodayButtonText(habit) {
+  String _getTodayButtonText(Habit habit) {
     if (_isCompletedToday(habit)) {
       return 'Completed Today ✓';
     }
     return 'Mark Complete';
   }
 
-  bool _isCompletedToday(habit) {
-    // TODO: Implement check for today's completion
-    return false;
+  bool _isCompletedToday(Habit habit) {
+    final todayProgress = HiveService.getTodayProgress(habit.id);
+    return todayProgress?.isCompleted == true;
   }
 
-  void _markHabitComplete(habit) {
+  void _markHabitComplete(Habit habit) {
     ref.read(habitProvider.notifier).markHabitComplete(habit.id);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(

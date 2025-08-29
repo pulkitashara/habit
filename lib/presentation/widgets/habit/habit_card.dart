@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 import '../../../domain/entities/habit.dart';
 import '../../../core/theme/colors.dart';
+import '../../../core/utils/color_utils.dart'; // ✅ Add this import
+import '../../../data/datasources/local/hive_service.dart';
 
 class HabitCard extends StatelessWidget {
   final Habit habit;
@@ -17,21 +19,12 @@ class HabitCard extends StatelessWidget {
     this.onDelete,
   });
 
-  Color _getCategoryColor() {
-    switch (habit.category.toLowerCase()) {
-      case 'fitness':
-        return AppColors.fitness;
-      case 'nutrition':
-        return AppColors.nutrition;
-      case 'mindfulness':
-        return AppColors.mindfulness;
-      case 'productivity':
-        return AppColors.productivity;
-      case 'social':
-        return AppColors.social;
-      default:
-        return AppColors.primary;
+  // ✅ NEW: Get the actual custom color or fallback to category color
+  Color _getHabitColor() {
+    if (habit.color.isNotEmpty) {
+      return ColorUtils.parseHexColor(habit.color);
     }
+    return ColorUtils.getCategoryFallbackColor(habit.category);
   }
 
   IconData _getCategoryIcon() {
@@ -51,9 +44,30 @@ class HabitCard extends StatelessWidget {
     }
   }
 
+  bool _isCompletedToday() {
+    final todayProgress = HiveService.getTodayProgress(habit.id);
+    return todayProgress?.isCompleted == true;
+  }
+
+  double _getCurrentProgress() {
+    final todayProgress = HiveService.getTodayProgress(habit.id);
+    if (todayProgress?.isCompleted == true) {
+      return 1.0;
+    }
+
+    if (todayProgress != null && todayProgress.completed > 0) {
+      return todayProgress.completed / todayProgress.target;
+    }
+
+    return 0.0;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final categoryColor = _getCategoryColor();
+    // ✅ FIXED: Use custom habit color instead of category color
+    final habitColor = _getHabitColor();
+    final isCompletedToday = _isCompletedToday();
+    final currentProgress = _getCurrentProgress();
 
     return Card(
       margin: EdgeInsets.zero,
@@ -71,12 +85,14 @@ class HabitCard extends StatelessWidget {
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: categoryColor.withOpacity(0.2),
+                      // ✅ FIXED: Use custom habit color
+                      color: habitColor.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(
                       _getCategoryIcon(),
-                      color: categoryColor,
+                      // ✅ FIXED: Use custom habit color
+                      color: habitColor,
                       size: 20,
                     ),
                   ),
@@ -94,7 +110,8 @@ class HabitCard extends StatelessWidget {
                         Text(
                           habit.category.toUpperCase(),
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: categoryColor,
+                            // ✅ FIXED: Use custom habit color
+                            color: habitColor,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -105,7 +122,7 @@ class HabitCard extends StatelessWidget {
                     onPressed: onToggleComplete,
                     icon: Icon(
                       Icons.check_circle,
-                      color: habit.completionRate > 0
+                      color: isCompletedToday
                           ? AppColors.success
                           : Colors.grey.shade400,
                       size: 28,
@@ -127,14 +144,15 @@ class HabitCard extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              'Progress',
+                              'Today\'s Progress',
                               style: Theme.of(context).textTheme.bodySmall,
                             ),
                             Text(
-                              '${(habit.completionRate * 100).toInt()}%',
+                              '${(currentProgress * 100).toInt()}%',
                               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                 fontWeight: FontWeight.w600,
-                                color: categoryColor,
+                                // ✅ FIXED: Use custom habit color
+                                color: habitColor,
                               ),
                             ),
                           ],
@@ -143,9 +161,10 @@ class HabitCard extends StatelessWidget {
                         ClipRRect(
                           borderRadius: BorderRadius.circular(4),
                           child: LinearProgressIndicator(
-                            value: habit.completionRate,
+                            value: currentProgress,
                             backgroundColor: Colors.grey.shade200,
-                            valueColor: AlwaysStoppedAnimation<Color>(categoryColor),
+                            // ✅ FIXED: Use custom habit color
+                            valueColor: AlwaysStoppedAnimation<Color>(habitColor),
                             minHeight: 6,
                           ),
                         ),
