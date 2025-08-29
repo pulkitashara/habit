@@ -72,6 +72,7 @@ class HabitCard extends StatelessWidget {
     return Card(
       margin: EdgeInsets.zero,
       child: InkWell(
+        key: const Key('habit_card_tap_area'),
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
         child: Padding(
