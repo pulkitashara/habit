@@ -126,23 +126,41 @@ flutter test
 ### Project Structure
 ```
 lib/
-├── core/                   # App-wide configurations
-│   ├── theme/             # Dark/light themes, colors
-│   ├── utils/             # Utilities, validators, helpers
-│   └── constants/         # App constants and enums
-├── data/                  # Data layer
-│   ├── models/           # Data models with JSON serialization
-│   ├── services/         # API services, Hive operations
-│   └── repositories/     # Repository pattern implementation
-├── domain/               # Business logic layer
-│   ├── entities/         # Domain entities (Habit, User, Progress)
-│   └── usecases/         # Business use cases
-├── presentation/         # UI layer
-│   ├── screens/          # App screens (Login, Dashboard, etc.)
-│   ├── widgets/          # Reusable UI components
-│   ├── providers/        # Riverpod providers
-│   └── routes/           # Navigation and routing
-└── main.dart            # App entry point
+├── main.dart                      # App entry point and initialization
+├── core/                          # App-wide configurations and utilities
+│   ├── constants/                 # API endpoints, storage keys, app constants
+│   ├── errors/                    # Failure classes for error handling
+│   ├── exceptions/                # Custom exception definitions
+│   ├── network/                   # Dio client, API interceptors for HTTP calls
+│   ├── theme/                     # App themes, color schemes, design tokens
+│   └── utils/                     # Utility functions (validators, date helpers, color utils)
+├── data/                          # Data layer implementation
+│   ├── datasources/               # Data source abstractions and implementations
+│   │   ├── local/                 # Hive service for offline storage
+│   │   └── remote/                # API data sources and implementations
+│   ├── models/                    # Data models with JSON serialization
+│   │   └── api/                   # API-specific DTOs and data objects
+│   ├── repositories/              # Repository implementations bridging data & domain
+│   └── services/                  # API services and mock implementations
+├── domain/                        # Business logic and core entities
+│   ├── entities/                  # Pure domain models (Habit, HabitProgress, User)
+│   ├── repositories/              # Repository abstractions for domain layer
+│   └── usecases/                  # Business logic and application use cases
+│       ├── auth/                  # Authentication-related business operations
+│       ├── habits/                # Habit CRUD, progress tracking logic
+│       └── sync/                  # Data synchronization operations
+└── presentation/                  # UI layer with screens and state management
+    ├── providers/                 # Riverpod providers and state notifiers
+    ├── routes/                    # App navigation setup (GoRouter configuration)
+    ├── screens/                   # Application screens and pages
+    │   ├── auth/                  # Login, signup, and authentication flows
+    │   ├── dashboard/             # Main dashboard and habit overview
+    │   ├── habit/                 # Habit creation, editing, and detail views
+    │   └── splash/                # App initialization and loading screen
+    └── widgets/                   # Reusable UI components and widgets
+        ├── common/                # Generic widgets (buttons, text fields, loaders)
+        ├── dashboard/             # Dashboard-specific UI components
+        └── habit/                 # Habit-related widgets (cards, charts, progress)
 ```
 
 ### State Management Justification
